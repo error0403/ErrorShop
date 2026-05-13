@@ -1,5 +1,5 @@
 title: "&6官方商店"
-permission: "easyshop.shop.default"
+permission: "errorshop.shop.default"
 items:
   diamond:
     material: DIAMOND

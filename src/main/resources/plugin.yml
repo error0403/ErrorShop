@@ -1,23 +1,23 @@
-name: EasyShop
-main: com.pixelserver.easyshop.EasyShopPlugin
+name: ErrorShop
+main: com.pixelserver.errorshop.ErrorShopPlugin
 version: 0.1.0
 authors: [PixelServer]
 api-version: '1.21'
 folia-supported: true
 softdepend: [Vault, PlaceholderAPI]
 commands:
-  easyshop:
-    description: EasyShop main command
-    usage: /easyshop <reload|shop|market|sell|menu>
+  errorshop:
+    description: ErrorShop main command
+    usage: /errorshop <reload|shop|market|sell|menu>
     aliases: [eshop]
 permissions:
-  easyshop.reload:
+  errorshop.reload:
     default: op
-  easyshop.market.sell:
+  errorshop.market.sell:
     default: true
-  easyshop.market.buy:
+  errorshop.market.buy:
     default: true
-  easyshop.shop.default:
+  errorshop.shop.default:
     default: true
-  easyshop.menu.main:
+  errorshop.menu.main:
     default: true

@@ -1,8 +1,8 @@
-title: EasyShop 中文用户指南
+title: ErrorShop 中文用户指南
 content:
-  - "EasyShop 是一个免费商店插件，包含官方商店、全球市场和自定义菜单。"
-  - "官方商店：管理员编辑 shops 文件夹中的配置文件，玩家使用 /easyshop shop <名称> 打开。"
-  - "全球市场：玩家手持物品执行 /easyshop sell <价格> 上架，其他玩家使用 /easyshop market 购买。"
-  - "自定义菜单：管理员编辑 menus 文件夹中的配置文件，通过 /easyshop menu <名称> 打开。"
+  - "ErrorShop 是一个免费商店插件，包含官方商店、全球市场和自定义菜单。"
+  - "官方商店：管理员编辑 shops 文件夹中的配置文件，玩家使用 /errorshop shop <名称> 打开。"
+  - "全球市场：玩家手持物品执行 /errorshop sell <价格> 上架，其他玩家使用 /errorshop market 购买。"
+  - "自定义菜单：管理员编辑 menus 文件夹中的配置文件，通过 /errorshop menu <名称> 打开。"
   - "主要配置在 config.yml，数据库/存储配置在 database.yml，所有提示文本在 lang.yml。"
   - "如果要启用真实经济，请安装 Vault 和经济插件，并把 config.yml 的 currency.provider 设置为 vault。"

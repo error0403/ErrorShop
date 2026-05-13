@@ -8,13 +8,13 @@ plugins {
     kotlin("jvm")
 }
 
-group = "com.pixelserver.easyshop"
+group = "com.pixelserver.errorshop"
 version = "0.1.0"
 
 easylib {
     env {
-        mainClassName = "com.pixelserver.easyshop.EasyShopPlugin"
-        pluginName = "EasyShop"
+        mainClassName = "com.pixelserver.errorshop.ErrorShopPlugin"
+        pluginName = "ErrorShop"
         kotlinVersion = ktVersion
     }
     version = easylibVersion

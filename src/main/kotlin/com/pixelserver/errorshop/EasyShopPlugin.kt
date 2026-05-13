@@ -1,4 +1,4 @@
-package com.pixelserver.easyshop
+package com.pixelserver.errorshop
 
 import org.bukkit.Bukkit
 import org.bukkit.ChatColor
@@ -17,7 +17,7 @@ import java.io.File
 import java.util.UUID
 import kotlin.math.max
 
-class EasyShopPlugin : EasyPlugin(), Listener {
+class ErrorShopPlugin : EasyPlugin(), Listener {
     private val shops = mutableMapOf<String, ShopConfig>()
     private val menus = mutableMapOf<String, MenuConfig>()
     private val market = MarketStore()
@@ -34,7 +34,7 @@ class EasyShopPlugin : EasyPlugin(), Listener {
         economy = EconomyBridge(this)
         reloadAll()
         Bukkit.getPluginManager().registerEvents(this, this)
-        logger.info("EasyShop enabled with ${shops.size} shops and ${menus.size} menus")
+        logger.info("ErrorShop enabled with ${shops.size} shops and ${menus.size} menus")
     }
 
     fun reloadAll() {
@@ -65,27 +65,27 @@ class EasyShopPlugin : EasyPlugin(), Listener {
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
         if (args.isEmpty()) { help(sender); return true }
         when (args[0].lowercase()) {
-            "reload" -> { if (!sender.hasPermission("easyshop.reload")) return deny(sender); reloadAll(); sender.sendMessage(msg("reloaded")); return true }
-            "shop" -> { val p = sender as? Player ?: return playerOnly(sender); openShop(p, args.getOrNull(1) ?: config.getString("settings.default-shop", "default")!!); return true }
-            "market" -> { val p = sender as? Player ?: return playerOnly(sender); if (!p.hasPermission("easyshop.market.buy")) return deny(p); openMarket(p); return true }
+            "reload" -> { if (!sender.hasPermission("errorshop.reload")) return deny(sender); reloadAll(); sender.sendMessage(msg("reloaded")); return true }
+            "shop" -> { val p = sender as? Player ?: return playerOnly(sender); openShop(p, args.getOrNull(1) ?: (config.getString("settings.default-shop") ?: "default")); return true }
+            "market" -> { val p = sender as? Player ?: return playerOnly(sender); if (!p.hasPermission("errorshop.market.buy")) return deny(p); openMarket(p); return true }
             "sell" -> { sellToMarket(sender, args); return true }
-            "menu" -> { val p = sender as? Player ?: return playerOnly(sender); openMenu(p, args.getOrNull(1) ?: config.getString("settings.default-menu", "main")!!); return true }
+            "menu" -> { val p = sender as? Player ?: return playerOnly(sender); openMenu(p, args.getOrNull(1) ?: (config.getString("settings.default-menu") ?: "main")); return true }
             else -> sender.sendMessage(msg("unknown-command"))
         }
         return true
     }
 
     private fun help(sender: CommandSender) {
-        sender.sendMessage(color("&6/easyshop shop <id> &7打开官方商店"))
-        sender.sendMessage(color("&6/easyshop market &7打开全球市场"))
-        sender.sendMessage(color("&6/easyshop sell <price> &7上架手持物品"))
-        sender.sendMessage(color("&6/easyshop menu <id> &7打开自定义菜单"))
-        sender.sendMessage(color("&6/easyshop reload &7重载配置"))
+        sender.sendMessage(color("&6/errorshop shop <id> &7打开官方商店"))
+        sender.sendMessage(color("&6/errorshop market &7打开全球市场"))
+        sender.sendMessage(color("&6/errorshop sell <price> &7上架手持物品"))
+        sender.sendMessage(color("&6/errorshop menu <id> &7打开自定义菜单"))
+        sender.sendMessage(color("&6/errorshop reload &7重载配置"))
     }
 
     private fun sellToMarket(sender: CommandSender, args: Array<out String>) {
         val p = sender as? Player ?: run { playerOnly(sender); return }
-        if (!p.hasPermission("easyshop.market.sell")) { deny(p); return }
+        if (!p.hasPermission("errorshop.market.sell")) { deny(p); return }
         val price = args.getOrNull(1)?.toDoubleOrNull()?.takeIf { it > 0 } ?: run { p.sendMessage(msg("invalid-price")); return }
         val item = p.inventory.itemInMainHand
         if (item.type.isAir) { p.sendMessage(msg("empty-hand")); return }
@@ -98,7 +98,7 @@ class EasyShopPlugin : EasyPlugin(), Listener {
 
     private fun openShop(player: Player, id: String) {
         val shop = shops[id] ?: run { player.sendMessage(msg("shop-not-found")); return }
-        if (!player.hasPermission(shop.permission ?: "easyshop.shop.$id")) { deny(player); return }
+        if (!player.hasPermission(shop.permission ?: "errorshop.shop.$id")) { deny(player); return }
         val inv = Bukkit.createInventory(null, 54, color(shop.title))
         shop.items.values.take(45).forEachIndexed { idx, item -> inv.setItem(idx, item.toIcon()) }
         player.openInventory(inv); openSessions[player.uniqueId] = OpenSession.Shop(id)
@@ -114,7 +114,7 @@ class EasyShopPlugin : EasyPlugin(), Listener {
 
     private fun openMenu(player: Player, id: String) {
         val menu = menus[id] ?: run { player.sendMessage(msg("menu-not-found")); return }
-        if (!player.hasPermission("easyshop.menu.$id")) { deny(player); return }
+        if (!player.hasPermission("errorshop.menu.$id")) { deny(player); return }
         val rows = max(1, menu.layout.size).coerceAtMost(6)
         val inv = Bukkit.createInventory(null, rows * 9, color(menu.title))
         menu.layout.forEachIndexed { row, line -> line.take(9).forEachIndexed { col, key -> menu.items[key]?.let { inv.setItem(row * 9 + col, it.toIcon()) } } }
@@ -124,7 +124,7 @@ class EasyShopPlugin : EasyPlugin(), Listener {
     @EventHandler fun onClick(event: InventoryClickEvent) {
         val player = event.whoClicked as? Player ?: return
         val session = openSessions[player.uniqueId] ?: return
-        if (!isEasyShopInventory(player, session, event.view.topInventory)) {
+        if (!isErrorShopInventory(player, session, event.view.topInventory)) {
             openSessions.remove(player.uniqueId)
             return
         }
@@ -203,7 +203,7 @@ class EasyShopPlugin : EasyPlugin(), Listener {
         }
     }
 
-    private fun isEasyShopInventory(player: Player, session: OpenSession, inventory: org.bukkit.inventory.Inventory): Boolean {
+    private fun isErrorShopInventory(player: Player, session: OpenSession, inventory: org.bukkit.inventory.Inventory): Boolean {
         if (player.openInventory.topInventory != inventory) return false
         val expectedTitle = when (session) {
             is OpenSession.Shop -> shops[session.id]?.title ?: return false

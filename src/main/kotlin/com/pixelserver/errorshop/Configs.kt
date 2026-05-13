@@ -1,4 +1,4 @@
-package com.pixelserver.easyshop
+package com.pixelserver.errorshop
 
 import org.bukkit.ChatColor
 import org.bukkit.Material

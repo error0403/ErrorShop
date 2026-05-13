@@ -1,4 +1,4 @@
-package com.pixelserver.easyshop
+package com.pixelserver.errorshop
 
 import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.inventory.ItemStack

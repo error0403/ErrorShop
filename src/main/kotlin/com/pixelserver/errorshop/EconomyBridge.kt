@@ -1,10 +1,10 @@
-package com.pixelserver.easyshop
+package com.pixelserver.errorshop
 
 import org.bukkit.Bukkit
 import org.bukkit.entity.Player
 
 /** Soft Vault economy bridge using reflection, so Vault is optional at compile time. */
-class EconomyBridge(private val plugin: EasyShopPlugin) {
+class EconomyBridge(private val plugin: ErrorShopPlugin) {
     private var economy: Any? = null
     val enabled: Boolean get() = plugin.config.getString("currency.provider", "none").equals("vault", true)
 

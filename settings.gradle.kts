@@ -16,4 +16,4 @@ pluginManagement {
         id("com.xbaimiao.easylib") version easylibPluginVersion
     }
 }
-rootProject.name = "EasyShop"
+rootProject.name = "ErrorShop"

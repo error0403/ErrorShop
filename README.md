@@ -1,6 +1,6 @@
-# EasyShop
+# ErrorShop
 
-EasyShop 是一个面向 Paper 1.21+ 的免费商店插件，包含官方商店、全球市场和自定义菜单。
+ErrorShop 是一个面向 Paper 1.21+ 的免费商店插件，包含官方商店、全球市场和自定义菜单。
 
 ## 功能
 
@@ -21,19 +21,19 @@ EasyShop 是一个面向 Paper 1.21+ 的免费商店插件，包含官方商店�
 
 ## 命令
 
-- /easyshop reload：重载配置。
-- /easyshop shop <名称>：打开官方商店。
-- /easyshop market：打开全球市场。
-- /easyshop sell <价格>：上架手持物品。
-- /easyshop menu <名称>：打开自定义菜单。
+- /errorshop reload：重载配置。
+- /errorshop shop <名称>：打开官方商店。
+- /errorshop market：打开全球市场。
+- /errorshop sell <价格>：上架手持物品。
+- /errorshop menu <名称>：打开自定义菜单。
 
 ## 权限
 
-- easyshop.reload：允许重载插件。
-- easyshop.shop.<名称>：允许打开指定官方商店。
-- easyshop.menu.<名称>：允许打开指定菜单。
-- easyshop.market.sell：允许上架商品。
-- easyshop.market.buy：允许购买市场商品。
+- errorshop.reload：允许重载插件。
+- errorshop.shop.<名称>：允许打开指定官方商店。
+- errorshop.menu.<名称>：允许打开指定菜单。
+- errorshop.market.sell：允许上架商品。
+- errorshop.market.buy：允许购买市场商品。
 
 ## 经济系统
 
