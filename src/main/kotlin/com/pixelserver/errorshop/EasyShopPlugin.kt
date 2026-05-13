@@ -154,15 +154,11 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
         val item = ItemStack(match.material, match.amount)
         val meta = item.itemMeta
         if (meta != null) { meta.setDisplayName(color(match.name ?: match.material.name)); item.itemMeta = meta }
-        if (!economy.available()) { sendText(player, msg("vault-missing")); return }
-        if (match.buy > 0 && !economy.withdraw(player, match.buy)) { sendText(player, msg("not-enough-money")); return }
-        if (!hasSpaceFor(player, item)) {
-            if (match.buy > 0) economy.deposit(player, match.buy)
-            sendText(player, msg("inventory-full"))
-            return
-        }
+        if (!hasSpaceFor(player, item)) { sendText(player, msg("inventory-full")); return }
+        val charge = chargeShopItem(player, match)
+        if (charge != null) { sendText(player, charge); return }
         player.inventory.addItem(item)
-        sendText(player, msg("buy-success", mapOf("item" to match.material.name, "amount" to match.amount.toString(), "price" to match.buy.toString())))
+        sendText(player, msg("buy-success", mapOf("item" to match.material.name, "amount" to match.amount.toString(), "price" to match.buy.toString(), "points" to match.points.toString())))
     }
 
     private fun handleMarketClick(player: Player, slot: Int) {
@@ -180,6 +176,24 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
         }
         player.inventory.addItem(listing.item.clone())
         sendText(player, msg("market-bought", mapOf("price" to listing.price.toString())))
+    }
+
+    private fun chargeShopItem(player: Player, item: ShopItem): String? {
+        val money = item.buy
+        val points = item.points
+        if (money <= 0 && points <= 0) return null
+        if (item.currencyMode.equals("or", true) && money > 0 && points > 0) {
+            if (economy.available() && economy.charge(player, money, 0) == ChargeResult.SUCCESS) return null
+            if (economy.pointsAvailable() && economy.charge(player, 0.0, points) == ChargeResult.SUCCESS) return null
+            return msg("not-enough-any", mapOf("price" to money.toString(), "points" to points.toString()))
+        }
+        return when (economy.charge(player, money, points)) {
+            ChargeResult.SUCCESS -> null
+            ChargeResult.MISSING_MONEY_PROVIDER -> msg("vault-missing")
+            ChargeResult.MISSING_POINTS_PROVIDER -> msg("points-missing")
+            ChargeResult.NOT_ENOUGH_MONEY -> msg("not-enough-money")
+            ChargeResult.NOT_ENOUGH_POINTS -> msg("not-enough-points")
+        }
     }
 
     private fun hasSpaceFor(player: Player, item: ItemStack): Boolean {

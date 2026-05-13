@@ -13,3 +13,8 @@ shop:
   close-after-purchase: false
 menu:
   allow-console-actions: true
+
+points:
+  enabled: false
+  provider: playerpoints
+  name: 点券

@@ -22,21 +22,23 @@ data class ShopConfig(val id: String, val title: String, val permission: String?
             section?.getKeys(false)?.forEach { key ->
                 val path = "items.$key"
                 val material = Material.matchMaterial(yaml.getString("$path.material") ?: key) ?: Material.STONE
-                items[key] = ShopItem(material, yaml.getString("$path.name"), yaml.getStringList("$path.lore"), yaml.getDouble("$path.buy", 0.0), yaml.getDouble("$path.sell", 0.0), yaml.getInt("$path.amount", 1).coerceAtLeast(1))
+                items[key] = ShopItem(material, yaml.getString("$path.name"), yaml.getStringList("$path.lore"), yaml.getDouble("$path.buy", 0.0), yaml.getInt("$path.points", 0).coerceAtLeast(0), yaml.getString("$path.currency-mode", "and") ?: "and", yaml.getDouble("$path.sell", 0.0), yaml.getInt("$path.amount", 1).coerceAtLeast(1))
             }
             return ShopConfig(id, yaml.getString("title") ?: "&6Shop", yaml.getString("permission"), items)
         }
     }
 }
 
-data class ShopItem(val material: Material, val name: String?, val lore: List<String>, val buy: Double, val sell: Double, val amount: Int) {
+data class ShopItem(val material: Material, val name: String?, val lore: List<String>, val buy: Double, val points: Int, val currencyMode: String, val sell: Double, val amount: Int) {
     fun toIcon(): ItemStack {
         val item = ItemStack(material, amount)
         val meta = item.itemMeta
         if (meta != null) {
             meta.setDisplayName(colorText(name ?: "&f${material.name}"))
             val out = lore.toMutableList()
-            if (buy > 0) out += "&a购买: &e$buy"
+            if (buy > 0 && points > 0) out += if (currencyMode.equals("or", true)) "&a购买: &e$buy &7或 &d$points 点券" else "&a购买: &e$buy &7+ &d$points 点券"
+            else if (buy > 0) out += "&a购买: &e$buy"
+            else if (points > 0) out += "&a购买: &d$points 点券"
             if (sell > 0) out += "&b出售: &e$sell"
             meta.lore = out.map(::colorText)
             item.itemMeta = meta

@@ -1,6 +1,6 @@
 name: ErrorShop
 main: com.pixelserver.errorshop.ErrorShopPlugin
-version: 0.13
+version: 0.14
 authors: [PixelServer]
 api-version: '1.21'
 folia-supported: true
@@ -21,3 +21,5 @@ permissions:
     default: true
   errorshop.menu.main:
     default: true
+
+softdepend: [Vault, PlayerPoints]

@@ -225,9 +225,9 @@ Notes:
 
 ## 🎨 MiniMessage 支持 / MiniMessage support
 
-ErrorShop 0.13 开始支持 MiniMessage 文本格式，同时兼容传统 `&` 颜色代码。
+ErrorShop 0.14 开始支持 MiniMessage 文本格式，同时兼容传统 `&` 颜色代码。
 
-Starting from ErrorShop 0.13, MiniMessage text formatting is supported while legacy `&` color codes remain compatible.
+Starting from ErrorShop 0.14, MiniMessage text formatting is supported while legacy `&` color codes remain compatible.
 
 你可以在 `lang.yml`、商店名称、物品名称、lore、菜单标题和菜单文本里使用：
 
@@ -251,6 +251,53 @@ listing-limit: "&c你上架的商品已经达到上限。"
 推荐新配置使用 MiniMessage，老配置不用立刻改。
 
 MiniMessage is recommended for new configurations, but existing configs do not need to be changed immediately.
+
+
+## 💎 点券与双经济 / Points and dual economy
+
+ErrorShop 0.14 开始支持 PlayerPoints 点券，并支持和 PixelShop 类似的双经济价格。
+
+Starting from ErrorShop 0.14, PlayerPoints is supported. Shop items can use money, points, or both currencies like PixelShop.
+
+启用点券：
+
+Enable points:
+
+```yaml
+points:
+  enabled: true
+  provider: playerpoints
+  name: 点券
+```
+
+商品配置示例：
+
+Shop item example:
+
+```yaml
+items:
+  diamond:
+    material: DIAMOND
+    name: "&b钻石"
+    buy: 100.0
+    points: 5
+    currency-mode: and
+    amount: 1
+```
+
+字段说明：
+
+- `buy`：Vault 金币价格，`0` 表示不需要金币。
+- `points`：点券价格，`0` 表示不需要点券。
+- `currency-mode: and`：两种货币都需要满足并同时扣除。
+- `currency-mode: or`：金币或点券满足其中一种即可购买，优先扣金币，金币不足时尝试扣点券。
+
+Fields:
+
+- `buy`: Vault money cost. `0` means money is not required.
+- `points`: points cost. `0` means points are not required.
+- `currency-mode: and`: both currencies are required and charged together.
+- `currency-mode: or`: either money or points can be used; money is tried first, then points.
 
 ## 🏪 shops/ 商店怎么写 / How to write shops/
 
@@ -426,8 +473,8 @@ Players need:
 
 ### MiniMessage
 
-ErrorShop 0.13 supports MiniMessage while keeping legacy `&` color code compatibility.
+ErrorShop 0.14 supports MiniMessage while keeping legacy `&` color code compatibility.
 
 ### PlaceholderAPI
 
-ErrorShop 0.13 does not currently provide confirmed custom `%errorshop_*%` placeholders.
+ErrorShop 0.14 does not currently provide confirmed custom `%errorshop_*%` placeholders.
