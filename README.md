@@ -353,6 +353,21 @@ items:
 
 如果你的服务器已经安装 PlaceholderAPI，其它插件提供的变量仍然可以按你自己的菜单/文本系统使用，但 ErrorShop 当前没有公开自己的变量列表。
 
+
+## 📮 联系与反馈 / Contact & Feedback
+
+如果你在使用 ErrorShop 时遇到问题、发现 Bug，或者有功能建议，可以随时联系：
+
+- QQ：`1955008190`
+- 欢迎反馈 Bug 和改进建议
+- 插件会持续维护，基本每天都会修复和更新
+
+If you find bugs or have suggestions, feel free to contact me anytime.
+
+- QQ: `1955008190`
+- Bug reports and feedback are welcome
+- The plugin is actively maintained and updated frequently
+
 ## 🇬🇧 English Quick Reference
 
 ### Main config
