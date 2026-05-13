@@ -32,8 +32,8 @@ repositories {
 }
 
 dependencies {
-    compileOnly("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
-    compileOnly(kotlin("stdlib-jdk8"))
+    implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
+    implementation(kotlin("stdlib-jdk8"))
     compileOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
 
 //    compileOnly("org.spigotmc:spigot-api:1.18.2-R0.1-SNAPSHOT")
@@ -59,14 +59,12 @@ tasks {
             exclude(dependency("org.slf4j:"))
             exclude(dependency("org.jetbrains:annotations:"))
             exclude(dependency("com.google.code.gson:gson:"))
-            exclude(dependency("org.jetbrains.kotlin:"))
-            exclude(dependency("org.jetbrains.kotlinx:"))
         }
         archiveClassifier.set("")
         easylib.relocate.forEach {
             relocate(it.pattern, it.replacement)
         }
-        minimize()
+        // Do not minimize: Kotlin runtime classes are required on clean Paper servers.
     }
 
 }
