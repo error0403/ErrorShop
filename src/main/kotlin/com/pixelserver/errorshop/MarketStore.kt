@@ -1,10 +1,20 @@
 package com.pixelserver.errorshop
 
+import com.google.gson.Gson
+import org.bukkit.Material
 import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.inventory.ItemStack
+import java.io.ByteArrayInputStream
+import java.io.ByteArrayOutputStream
 import java.io.File
+import java.sql.Connection
+import java.sql.DriverManager
+import java.sql.ResultSet
+import java.util.Base64
+import java.util.Properties
 import java.util.UUID
 
+/** Permission based market slot group. */
 data class MarketGroup(val id: String, val permission: String?, val slots: Int)
 
 data class ClusterSettings(
@@ -12,19 +22,36 @@ data class ClusterSettings(
     val group: String,
     val serverId: String,
     val redisEnabled: Boolean,
-    val redisChannel: String
+    val redisHost: String,
+    val redisPort: Int,
+    val redisPassword: String?,
+    val redisDatabase: Int,
+    val redisChannel: String,
+    val marketBackend: String,
+    val failPolicy: String,
+    val mysql: MysqlSettings
 )
 
-interface MarketBackend {
-    fun load(dataFolder: File, database: YamlConfiguration)
-    fun listings(): List<MarketListing>
-    fun countBySeller(seller: UUID): Int
-    fun add(seller: UUID, sellerName: String, item: ItemStack, price: Double)
-    fun remove(id: String)
-    fun addPendingEarning(seller: UUID, amount: Double)
-    fun takePendingEarning(seller: UUID): Double
-    fun restorePendingEarning(seller: UUID, amount: Double)
+data class MysqlSettings(
+    val host: String,
+    val port: Int,
+    val database: String,
+    val username: String,
+    val password: String,
+    val tablePrefix: String,
+    val useSsl: Boolean
+) {
+    val jdbcUrl: String get() = "jdbc:mysql://$host:$port/$database?useSSL=$useSsl&allowPublicKeyRetrieval=true&serverTimezone=UTC&characterEncoding=utf8"
 }
+
+data class MarketEvent(
+    val type: String,
+    val eventId: String = UUID.randomUUID().toString(),
+    val originServer: String,
+    val group: String,
+    val listingId: String? = null,
+    val time: Long = System.currentTimeMillis()
+)
 
 data class MarketListing(val id: String, val seller: UUID, val sellerName: String, val item: ItemStack, val price: Double) {
     fun icon(): ItemStack {
@@ -42,23 +69,41 @@ data class MarketListing(val id: String, val seller: UUID, val sellerName: Strin
     }
 }
 
+data class PurchaseResult(val status: PurchaseStatus, val listing: MarketListing? = null)
+enum class PurchaseStatus { SUCCESS, NOT_FOUND, OWN_ITEM, NO_MONEY_PROVIDER, NOT_ENOUGH_MONEY, INVENTORY_FULL, STORAGE_UNAVAILABLE }
+
+interface MarketBackend {
+    fun load(dataFolder: File, database: YamlConfiguration)
+    fun listings(): List<MarketListing>
+    fun countBySeller(seller: UUID): Int
+    fun add(seller: UUID, sellerName: String, item: ItemStack, price: Double): String?
+    fun remove(id: String)
+    fun reserve(id: String, buyer: UUID): MarketListing?
+    fun markSold(id: String, buyer: UUID)
+    fun releaseReservation(id: String)
+    fun addPendingEarning(seller: UUID, amount: Double)
+    fun takePendingEarning(seller: UUID): Double
+    fun restorePendingEarning(seller: UUID, amount: Double)
+    fun queueDelivery(buyer: UUID, item: ItemStack)
+    fun takeDeliveries(buyer: UUID): List<ItemStack>
+}
+
 class MarketStore : MarketBackend {
     private val listings = linkedMapOf<String, MarketListing>()
     private val pendingEarnings = linkedMapOf<UUID, Double>()
+    private val deliveries = linkedMapOf<UUID, MutableList<ItemStack>>()
     private var file: File? = null
 
     override fun load(dataFolder: File, database: YamlConfiguration) {
         file = resolveStorageFile(dataFolder, database)
-        listings.clear(); pendingEarnings.clear()
+        listings.clear(); pendingEarnings.clear(); deliveries.clear()
         val f = file ?: return
         if (!f.exists()) return
         val yaml = YamlConfiguration.loadConfiguration(f)
         yaml.getConfigurationSection("listings")?.getKeys(false)?.forEach { id ->
             val path = "listings.$id"
             val seller = runCatching { UUID.fromString(yaml.getString("$path.seller")) }.getOrNull() ?: return@forEach
-            val item = yaml.getItemStack("$path.item")
-                ?: legacyItem(yaml, path)
-                ?: return@forEach
+            val item = yaml.getItemStack("$path.item") ?: legacyItem(yaml, path) ?: return@forEach
             listings[id] = MarketListing(id, seller, yaml.getString("$path.seller-name") ?: "unknown", item, yaml.getDouble("$path.price"))
         }
         yaml.getConfigurationSection("pending-earnings")?.getKeys(false)?.forEach { raw ->
@@ -66,26 +111,29 @@ class MarketStore : MarketBackend {
             val amount = yaml.getDouble("pending-earnings.$raw", 0.0)
             if (amount > 0) pendingEarnings[uuid] = amount
         }
+        yaml.getConfigurationSection("deliveries")?.getKeys(false)?.forEach { raw ->
+            val uuid = runCatching { UUID.fromString(raw) }.getOrNull() ?: return@forEach
+            val list = mutableListOf<ItemStack>()
+            yaml.getConfigurationSection("deliveries.$raw")?.getKeys(false)?.forEach { k ->
+                yaml.getItemStack("deliveries.$raw.$k")?.let { list += it }
+            }
+            if (list.isNotEmpty()) deliveries[uuid] = list
+        }
     }
 
     override fun listings(): List<MarketListing> = listings.values.toList()
     override fun countBySeller(seller: UUID): Int = listings.values.count { it.seller == seller }
-    override fun add(seller: UUID, sellerName: String, item: ItemStack, price: Double) { val id = System.currentTimeMillis().toString(36) + "-" + seller.toString().take(8); listings[id] = MarketListing(id, seller, sellerName, item, price); save() }
+    override fun add(seller: UUID, sellerName: String, item: ItemStack, price: Double): String { val id = System.currentTimeMillis().toString(36) + "-" + seller.toString().take(8); listings[id] = MarketListing(id, seller, sellerName, item, price); save(); return id }
     override fun remove(id: String) { listings.remove(id); save() }
+    override fun reserve(id: String, buyer: UUID): MarketListing? = listings[id]
+    override fun markSold(id: String, buyer: UUID) { listings.remove(id); save() }
+    override fun releaseReservation(id: String) { save() }
 
-    override fun addPendingEarning(seller: UUID, amount: Double) {
-        if (amount <= 0) return
-        pendingEarnings[seller] = (pendingEarnings[seller] ?: 0.0) + amount
-        save()
-    }
-
-    override fun takePendingEarning(seller: UUID): Double {
-        val amount = pendingEarnings.remove(seller) ?: return 0.0
-        save()
-        return amount
-    }
-
+    override fun addPendingEarning(seller: UUID, amount: Double) { if (amount > 0) { pendingEarnings[seller] = (pendingEarnings[seller] ?: 0.0) + amount; save() } }
+    override fun takePendingEarning(seller: UUID): Double { val amount = pendingEarnings.remove(seller) ?: return 0.0; save(); return amount }
     override fun restorePendingEarning(seller: UUID, amount: Double) = addPendingEarning(seller, amount)
+    override fun queueDelivery(buyer: UUID, item: ItemStack) { deliveries.getOrPut(buyer) { mutableListOf() }.add(item.clone()); save() }
+    override fun takeDeliveries(buyer: UUID): List<ItemStack> { val items = deliveries.remove(buyer) ?: return emptyList(); save(); return items }
 
     private fun save() {
         val f = file ?: return
@@ -95,23 +143,135 @@ class MarketStore : MarketBackend {
             val path = "listings.${l.id}"
             yaml.set("$path.seller", l.seller.toString()); yaml.set("$path.seller-name", l.sellerName); yaml.set("$path.item", l.item); yaml.set("$path.price", l.price)
         }
-        pendingEarnings.forEach { (seller, amount) ->
-            if (amount > 0) yaml.set("pending-earnings.$seller", amount)
-        }
+        pendingEarnings.forEach { (seller, amount) -> if (amount > 0) yaml.set("pending-earnings.$seller", amount) }
+        deliveries.forEach { (buyer, items) -> items.forEachIndexed { i, item -> yaml.set("deliveries.$buyer.$i", item) } }
         yaml.save(f)
     }
 
     private fun resolveStorageFile(dataFolder: File, database: YamlConfiguration): File {
-        val configured = database.getString("storage.yaml.file")
-            ?: database.getString("storage.file")
-            ?: database.getString("storage.market-file")
-            ?: "market.yml"
+        val configured = database.getString("storage.yaml.file") ?: database.getString("storage.file") ?: database.getString("storage.market-file") ?: "market.yml"
         val f = File(configured)
         return if (f.isAbsolute) f else File(dataFolder, configured)
     }
 
     private fun legacyItem(yaml: YamlConfiguration, path: String): ItemStack? {
-        val material = org.bukkit.Material.matchMaterial(yaml.getString("$path.material") ?: return null) ?: return null
+        val material = Material.matchMaterial(yaml.getString("$path.material") ?: return null) ?: return null
         return ItemStack(material, yaml.getInt("$path.amount", 1).coerceAtLeast(1))
     }
 }
+
+class MysqlMarketBackend(private val settings: MysqlSettings) : MarketBackend {
+    private val listingsTable = settings.tablePrefix + "market_listings"
+    private val pendingTable = settings.tablePrefix + "market_pending_earnings"
+    private val deliveriesTable = settings.tablePrefix + "market_deliveries"
+
+    override fun load(dataFolder: File, database: YamlConfiguration) { initTables() }
+
+    private fun connection(): Connection {
+        val props = Properties()
+        props.setProperty("user", settings.username)
+        props.setProperty("password", settings.password)
+        return DriverManager.getConnection(settings.jdbcUrl, props)
+    }
+
+    private fun initTables() = connection().use { c ->
+        c.createStatement().use { st ->
+            st.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS $listingsTable (
+                    id VARCHAR(64) PRIMARY KEY,
+                    seller_uuid VARCHAR(36) NOT NULL,
+                    seller_name VARCHAR(32) NOT NULL,
+                    item_blob MEDIUMTEXT NOT NULL,
+                    price DOUBLE NOT NULL,
+                    status VARCHAR(16) NOT NULL DEFAULT 'ACTIVE',
+                    buyer_uuid VARCHAR(36) NULL,
+                    locked_at BIGINT NULL,
+                    created_at BIGINT NOT NULL,
+                    updated_at BIGINT NOT NULL,
+                    INDEX idx_status_created(status, created_at),
+                    INDEX idx_seller_status(seller_uuid, status)
+                )
+            """.trimIndent())
+            st.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS $pendingTable (
+                    seller_uuid VARCHAR(36) PRIMARY KEY,
+                    amount DOUBLE NOT NULL DEFAULT 0
+                )
+            """.trimIndent())
+            st.executeUpdate("""
+                CREATE TABLE IF NOT EXISTS $deliveriesTable (
+                    id BIGINT PRIMARY KEY AUTO_INCREMENT,
+                    buyer_uuid VARCHAR(36) NOT NULL,
+                    item_blob MEDIUMTEXT NOT NULL,
+                    created_at BIGINT NOT NULL,
+                    INDEX idx_buyer(buyer_uuid)
+                )
+            """.trimIndent())
+        }
+    }
+
+    override fun listings(): List<MarketListing> = connection().use { c ->
+        c.prepareStatement("SELECT id,seller_uuid,seller_name,item_blob,price FROM $listingsTable WHERE status='ACTIVE' ORDER BY created_at DESC LIMIT 500").use { ps ->
+            ps.executeQuery().use { rs -> buildList { while (rs.next()) toListing(rs)?.let { add(it) } } }
+        }
+    }
+
+    override fun countBySeller(seller: UUID): Int = connection().use { c ->
+        c.prepareStatement("SELECT COUNT(*) FROM $listingsTable WHERE seller_uuid=? AND status='ACTIVE'").use { ps -> ps.setString(1, seller.toString()); ps.executeQuery().use { rs -> if (rs.next()) rs.getInt(1) else 0 } }
+    }
+
+    override fun add(seller: UUID, sellerName: String, item: ItemStack, price: Double): String {
+        val id = System.currentTimeMillis().toString(36) + "-" + seller.toString().take(8)
+        val now = System.currentTimeMillis()
+        connection().use { c ->
+            c.prepareStatement("INSERT INTO $listingsTable(id,seller_uuid,seller_name,item_blob,price,status,created_at,updated_at) VALUES(?,?,?,?,?,'ACTIVE',?,?)").use { ps ->
+                ps.setString(1, id); ps.setString(2, seller.toString()); ps.setString(3, sellerName); ps.setString(4, serializeItem(item)); ps.setDouble(5, price); ps.setLong(6, now); ps.setLong(7, now); ps.executeUpdate()
+            }
+        }
+        return id
+    }
+
+    override fun remove(id: String) { connection().use { c -> c.prepareStatement("UPDATE $listingsTable SET status='REMOVED',updated_at=? WHERE id=? AND status IN ('ACTIVE','LOCKED')").use { ps -> ps.setLong(1, System.currentTimeMillis()); ps.setString(2, id); ps.executeUpdate() } } }
+
+    override fun reserve(id: String, buyer: UUID): MarketListing? = connection().use { c ->
+        c.autoCommit = FalseCompat.FALSE
+        try {
+            val updated = c.prepareStatement("UPDATE $listingsTable SET status='LOCKED',buyer_uuid=?,locked_at=?,updated_at=? WHERE id=? AND status='ACTIVE'").use { ps ->
+                ps.setString(1, buyer.toString()); ps.setLong(2, System.currentTimeMillis()); ps.setLong(3, System.currentTimeMillis()); ps.setString(4, id); ps.executeUpdate()
+            }
+            if (updated != 1) { c.rollback(); return@use null }
+            val listing = c.prepareStatement("SELECT id,seller_uuid,seller_name,item_blob,price FROM $listingsTable WHERE id=? AND status='LOCKED'").use { ps -> ps.setString(1, id); ps.executeQuery().use { rs -> if (rs.next()) toListing(rs) else null } }
+            c.commit(); listing
+        } catch (t: Throwable) { c.rollback(); throw t } finally { c.autoCommit = true }
+    }
+
+    override fun markSold(id: String, buyer: UUID) { connection().use { c -> c.prepareStatement("UPDATE $listingsTable SET status='SOLD',buyer_uuid=?,updated_at=? WHERE id=? AND status='LOCKED'").use { ps -> ps.setString(1, buyer.toString()); ps.setLong(2, System.currentTimeMillis()); ps.setString(3, id); ps.executeUpdate() } } }
+    override fun releaseReservation(id: String) { connection().use { c -> c.prepareStatement("UPDATE $listingsTable SET status='ACTIVE',buyer_uuid=NULL,locked_at=NULL,updated_at=? WHERE id=? AND status='LOCKED'").use { ps -> ps.setLong(1, System.currentTimeMillis()); ps.setString(2, id); ps.executeUpdate() } } }
+
+    override fun addPendingEarning(seller: UUID, amount: Double) { if (amount <= 0) return; connection().use { c -> c.prepareStatement("INSERT INTO $pendingTable(seller_uuid,amount) VALUES(?,?) ON DUPLICATE KEY UPDATE amount=amount+VALUES(amount)").use { ps -> ps.setString(1, seller.toString()); ps.setDouble(2, amount); ps.executeUpdate() } } }
+    override fun takePendingEarning(seller: UUID): Double = connection().use { c ->
+        c.autoCommit = false
+        try {
+            val amount = c.prepareStatement("SELECT amount FROM $pendingTable WHERE seller_uuid=? FOR UPDATE").use { ps -> ps.setString(1, seller.toString()); ps.executeQuery().use { rs -> if (rs.next()) rs.getDouble(1) else 0.0 } }
+            if (amount > 0) c.prepareStatement("DELETE FROM $pendingTable WHERE seller_uuid=?").use { ps -> ps.setString(1, seller.toString()); ps.executeUpdate() }
+            c.commit(); amount
+        } catch (t: Throwable) { c.rollback(); throw t } finally { c.autoCommit = true }
+    }
+    override fun restorePendingEarning(seller: UUID, amount: Double) = addPendingEarning(seller, amount)
+    override fun queueDelivery(buyer: UUID, item: ItemStack) { connection().use { c -> c.prepareStatement("INSERT INTO $deliveriesTable(buyer_uuid,item_blob,created_at) VALUES(?,?,?)").use { ps -> ps.setString(1, buyer.toString()); ps.setString(2, serializeItem(item)); ps.setLong(3, System.currentTimeMillis()); ps.executeUpdate() } } }
+    override fun takeDeliveries(buyer: UUID): List<ItemStack> = connection().use { c ->
+        c.autoCommit = false
+        try {
+            val ids = mutableListOf<Long>(); val items = mutableListOf<ItemStack>()
+            c.prepareStatement("SELECT id,item_blob FROM $deliveriesTable WHERE buyer_uuid=? ORDER BY id ASC LIMIT 54 FOR UPDATE").use { ps -> ps.setString(1, buyer.toString()); ps.executeQuery().use { rs -> while (rs.next()) { ids += rs.getLong(1); deserializeItem(rs.getString(2))?.let { items += it } } } }
+            if (ids.isNotEmpty()) c.prepareStatement("DELETE FROM $deliveriesTable WHERE id IN (${ids.joinToString(",")})").use { it.executeUpdate() }
+            c.commit(); items
+        } catch (t: Throwable) { c.rollback(); throw t } finally { c.autoCommit = true }
+    }
+
+    private fun toListing(rs: ResultSet): MarketListing? = deserializeItem(rs.getString("item_blob"))?.let { MarketListing(rs.getString("id"), UUID.fromString(rs.getString("seller_uuid")), rs.getString("seller_name"), it, rs.getDouble("price")) }
+    private fun serializeItem(item: ItemStack): String { val out=ByteArrayOutputStream(); org.bukkit.util.io.BukkitObjectOutputStream(out).use { it.writeObject(item) }; return Base64.getEncoder().encodeToString(out.toByteArray()) }
+    private fun deserializeItem(raw: String): ItemStack? = runCatching { org.bukkit.util.io.BukkitObjectInputStream(ByteArrayInputStream(Base64.getDecoder().decode(raw))).use { it.readObject() as ItemStack } }.getOrNull()
+}
+
+private object FalseCompat { const val FALSE = false }

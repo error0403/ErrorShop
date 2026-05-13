@@ -16,6 +16,12 @@ import org.bukkit.event.inventory.InventoryCloseEvent
 import org.bukkit.event.player.PlayerJoinEvent
 import org.bukkit.inventory.ItemStack
 import com.xbaimiao.easylib.EasyPlugin
+import com.google.gson.Gson
+import redis.clients.jedis.Jedis
+import redis.clients.jedis.JedisPool
+import redis.clients.jedis.JedisPoolConfig
+import redis.clients.jedis.JedisPubSub
+import kotlin.concurrent.thread
 import java.io.File
 import java.util.UUID
 import kotlin.math.max
@@ -23,10 +29,13 @@ import kotlin.math.max
 class ErrorShopPlugin : EasyPlugin(), Listener {
     private val shops = mutableMapOf<String, ShopConfig>()
     private val menus = mutableMapOf<String, MenuConfig>()
-    private val market: MarketBackend = MarketStore()
+    private lateinit var market: MarketBackend
     private var marketGroups: List<MarketGroup> = emptyList()
     private lateinit var clusterSettings: ClusterSettings
     private lateinit var economy: EconomyBridge
+    private var jedisPool: JedisPool? = null
+    private var subscriber: JedisPubSub? = null
+    private val gson = Gson()
 
     override fun enable() {
         saveDefaultConfig()
@@ -43,7 +52,7 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
     }
 
     fun reloadAll() {
-        reloadConfig(); economy.setup(); loadShops(); loadMenus(); loadMarketSettings(); market.load(dataFolder, YamlConfiguration.loadConfiguration(File(dataFolder, "database.yml")))
+        reloadConfig(); economy.setup(); loadShops(); loadMenus(); loadMarketSettings(); setupMarketBackend(); setupRedisBus(); market.load(dataFolder, YamlConfiguration.loadConfiguration(File(dataFolder, "database.yml")))
     }
 
     private fun saveResourceIfMissing(path: String) {
@@ -74,7 +83,22 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
             group = config.getString("cluster.group") ?: "default",
             serverId = config.getString("cluster.server-id") ?: server.name,
             redisEnabled = config.getBoolean("cluster.redis.enabled", false),
-            redisChannel = config.getString("cluster.redis.channel") ?: "errorshop:market"
+            redisHost = config.getString("cluster.redis.host") ?: "localhost",
+            redisPort = config.getInt("cluster.redis.port", 6379),
+            redisPassword = config.getString("cluster.redis.password")?.takeIf { it.isNotBlank() },
+            redisDatabase = config.getInt("cluster.redis.database", 0),
+            redisChannel = config.getString("cluster.redis.channel") ?: "errorshop:market",
+            marketBackend = config.getString("market.backend") ?: "local",
+            failPolicy = config.getString("market.fail-policy") ?: "disable-market",
+            mysql = MysqlSettings(
+                host = config.getString("database.mysql.host") ?: "localhost",
+                port = config.getInt("database.mysql.port", 3306),
+                database = config.getString("database.mysql.database") ?: "errorshop",
+                username = config.getString("database.mysql.username") ?: "root",
+                password = config.getString("database.mysql.password") ?: "",
+                tablePrefix = config.getString("database.mysql.table-prefix") ?: "errorshop_",
+                useSsl = config.getBoolean("database.mysql.use-ssl", false)
+            )
         )
         val section = config.getConfigurationSection("market.groups")
         marketGroups = section?.getKeys(false)?.map { id ->
@@ -93,9 +117,57 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
             .maxOfOrNull { it.slots } ?: config.getInt("market.max-listings-per-player", 20)
     }
 
+    private fun setupMarketBackend() {
+        market = if (clusterSettings.enabled && clusterSettings.marketBackend.equals("mysql", true)) {
+            MysqlMarketBackend(clusterSettings.mysql)
+        } else {
+            MarketStore()
+        }
+    }
+
+    private fun setupRedisBus() {
+        val oldSubscriber = subscriber
+        if (oldSubscriber != null) runCatching { oldSubscriber.unsubscribe() }
+        subscriber = null
+        runCatching { jedisPool?.close() }
+        jedisPool = null
+        if (!clusterSettings.enabled || !clusterSettings.redisEnabled) return
+        runCatching {
+            val pool = if (clusterSettings.redisPassword != null) {
+                JedisPool(JedisPoolConfig(), clusterSettings.redisHost, clusterSettings.redisPort, 2000, clusterSettings.redisPassword, clusterSettings.redisDatabase)
+            } else {
+                JedisPool(JedisPoolConfig(), clusterSettings.redisHost, clusterSettings.redisPort, 2000, null, clusterSettings.redisDatabase)
+            }
+            pool.resource.use { it.ping() }
+            jedisPool = pool
+            val sub = object : JedisPubSub() {
+                override fun onMessage(channel: String, message: String) {
+                    runCatching {
+                        val event = gson.fromJson(message, MarketEvent::class.java)
+                        if (event.originServer == clusterSettings.serverId) return
+                        if (event.group != clusterSettings.group) return
+                        logger.info("[cluster:${event.group}] received ${event.type} listing=${event.listingId} from ${event.originServer}")
+                    }.onFailure { logger.warning("Invalid market redis event: ${it.message}") }
+                }
+            }
+            subscriber = sub
+            thread(name = "ErrorShop-Redis-Market", isDaemon = true) {
+                runCatching { pool.resource.use { it.subscribe(sub, clusterSettings.redisChannel) } }
+                    .onFailure { logger.warning("Redis market subscriber stopped: ${it.message}") }
+            }
+            logger.info("ErrorShop market Redis bus connected to ${clusterSettings.redisHost}:${clusterSettings.redisPort}/${clusterSettings.redisDatabase} channel=${clusterSettings.redisChannel}")
+        }.onFailure {
+            logger.warning("Redis market bus unavailable: ${it.message}")
+            if (clusterSettings.failPolicy.equals("disable-market", true)) logger.warning("Cluster market events disabled until reload.")
+        }
+    }
+
     private fun publishMarketEvent(type: String, listingId: String? = null) {
         if (!::clusterSettings.isInitialized || !clusterSettings.enabled || !clusterSettings.redisEnabled) return
-        logger.info("[cluster:${clusterSettings.group}] $type listing=${listingId ?: "-"} channel=${clusterSettings.redisChannel} server=${clusterSettings.serverId}")
+        val pool = jedisPool ?: return
+        val event = MarketEvent(type = type, originServer = clusterSettings.serverId, group = clusterSettings.group, listingId = listingId)
+        runCatching { pool.resource.use { it.publish(clusterSettings.redisChannel, gson.toJson(event)) } }
+            .onFailure { logger.warning("Failed to publish market event $type: ${it.message}") }
     }
 
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
@@ -127,8 +199,8 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
         if (item.type.isAir) { sendText(p, msg("empty-hand")); return }
         val limit = marketLimit(p)
         if (market.countBySeller(p.uniqueId) >= limit) { sendText(p, msg("listing-limit")); return }
-        market.add(p.uniqueId, p.name, item.clone(), price)
-        publishMarketEvent("LISTING_CREATED")
+        val listingId = market.add(p.uniqueId, p.name, item.clone(), price)
+        publishMarketEvent("LISTING_CREATED", listingId)
         item.amount = 0
         sendText(p, msg("sell-success", mapOf("price" to price.toString())))
     }
@@ -180,6 +252,7 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
 
     @EventHandler fun onJoin(event: PlayerJoinEvent) {
         payPendingEarnings(event.player)
+        claimQueuedDeliveries(event.player)
     }
 
     private fun handleShopClick(player: Player, shopId: String, clicked: ItemStack) {
@@ -196,21 +269,38 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
     }
 
     private fun handleMarketClick(player: Player, slot: Int) {
-        val listing = market.listings().getOrNull(slot) ?: return
-        if (listing.seller == player.uniqueId) { sendText(player, msg("market-own-item")); return }
+        val selected = market.listings().getOrNull(slot) ?: return
+        if (selected.seller == player.uniqueId) { sendText(player, msg("market-own-item")); return }
         if (!economy.available()) { sendText(player, msg("vault-missing")); return }
-        if (!hasSpaceFor(player, listing.item)) { sendText(player, msg("inventory-full")); return }
-        if (listing.price > 0 && !economy.withdraw(player, listing.price)) { sendText(player, msg("not-enough-money")); return }
-        market.remove(listing.id)
-        publishMarketEvent("LISTING_BOUGHT", listing.id)
-        val seller = Bukkit.getPlayer(listing.seller)
-        if (seller != null) {
-            if (!economy.deposit(seller, listing.price)) market.addPendingEarning(listing.seller, listing.price)
-        } else {
-            market.addPendingEarning(listing.seller, listing.price)
+        if (selected.price > 0 && !economy.withdraw(player, selected.price)) { sendText(player, msg("not-enough-money")); return }
+        val listing = market.reserve(selected.id, player.uniqueId)
+        if (listing == null) {
+            if (selected.price > 0) economy.deposit(player, selected.price)
+            sendText(player, msg("market-item-sold"))
+            return
         }
-        player.inventory.addItem(listing.item.clone())
-        sendText(player, msg("market-bought", mapOf("price" to listing.price.toString())))
+        try {
+            if (hasSpaceFor(player, listing.item)) {
+                player.inventory.addItem(listing.item.clone())
+            } else {
+                market.queueDelivery(player.uniqueId, listing.item.clone())
+                sendText(player, msg("market-delivery-queued"))
+            }
+            val seller = Bukkit.getPlayer(listing.seller)
+            if (seller != null) {
+                if (!economy.deposit(seller, listing.price)) market.addPendingEarning(listing.seller, listing.price)
+            } else {
+                market.addPendingEarning(listing.seller, listing.price)
+            }
+            market.markSold(listing.id, player.uniqueId)
+            publishMarketEvent("LISTING_BOUGHT", listing.id)
+            sendText(player, msg("market-bought", mapOf("price" to listing.price.toString())))
+        } catch (t: Throwable) {
+            market.releaseReservation(listing.id)
+            if (selected.price > 0) economy.deposit(player, selected.price)
+            logger.warning("Market purchase failed and was rolled back: ${t.message}")
+            sendText(player, msg("market-cluster-unavailable"))
+        }
     }
 
     private fun chargeShopItem(player: Player, item: ShopItem): String? {
@@ -242,6 +332,16 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
             }
         }
         return remaining <= 0
+    }
+
+    private fun claimQueuedDeliveries(player: Player) {
+        val items = market.takeDeliveries(player.uniqueId)
+        if (items.isEmpty()) return
+        var queuedAgain = 0
+        items.forEach { item ->
+            if (hasSpaceFor(player, item)) player.inventory.addItem(item.clone()) else { market.queueDelivery(player.uniqueId, item); queuedAgain++ }
+        }
+        if (queuedAgain < items.size) sendText(player, msg("market-delivery-claimed"))
     }
 
     private fun payPendingEarnings(player: Player) {
@@ -302,6 +402,11 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
         return runCatching { MiniMessage.miniMessage().deserialize(legacy) }
             .getOrElse { LegacyComponentSerializer.legacySection().deserialize(legacy) }
     }
+    override fun disable() {
+        runCatching { subscriber?.unsubscribe() }
+        runCatching { jedisPool?.close() }
+    }
+
     companion object { val openSessions = mutableMapOf<UUID, OpenSession>() }
 }
 

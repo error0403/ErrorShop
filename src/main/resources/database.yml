@@ -8,7 +8,17 @@ storage:
     file: market.db
 
 
-# Future cluster market storage. Current 0.15 keeps local YAML backend by default; MySQL backend will use these settings.
+# Future cluster market storage. Current local YAML backend by default; MySQL backend will use these settings.
 cluster-market:
   enabled: false
   table-prefix: "errorshop_"
+
+
+mysql:
+  host: "localhost"
+  port: 3306
+  database: "errorshop"
+  username: "root"
+  password: ""
+  table-prefix: "errorshop_"
+  use-ssl: false

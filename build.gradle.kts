@@ -11,7 +11,7 @@ plugins {
 }
 
 group = "com.pixelserver.errorshop"
-version = "0.15"
+version = "0.16"
 
 easylib {
     env {
@@ -34,6 +34,9 @@ repositories {
 }
 
 dependencies {
+    implementation("com.mysql:mysql-connector-j:9.1.0")
+    implementation("redis.clients:jedis:5.2.0")
+    implementation("com.google.code.gson:gson:2.11.0")
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
     implementation(kotlin("stdlib-jdk8"))
     implementation("net.kyori:adventure-text-minimessage:4.17.0")

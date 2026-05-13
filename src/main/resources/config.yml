@@ -6,6 +6,9 @@ currency:
   # vault: use Vault economy when Vault is installed
   provider: none
 market:
+  backend: "local" # local / mysql
+  cache-seconds: 5
+  fail-policy: "disable-market" # disable-market / local-readonly
   # Permission-based listing limits. If a player matches multiple groups, the largest slots value is used.
   groups:
     default:
@@ -42,3 +45,13 @@ cluster:
     password: ""
     database: 0
     channel: "errorshop:market"
+
+database:
+  mysql:
+    host: "localhost"
+    port: 3306
+    database: "errorshop"
+    username: "root"
+    password: ""
+    table-prefix: "errorshop_"
+    use-ssl: false

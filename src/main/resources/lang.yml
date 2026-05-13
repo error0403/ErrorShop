@@ -24,3 +24,13 @@ not-enough-any: "&c你的余额或点券都不足。需要 {price} 金币或 {po
 market-cluster-sync: "&7市场群组同步已触发。"
 
 market-cluster-unavailable: "&c群组市场暂不可用，请稍后再试。"
+
+market-item-locked: "&c这个商品正在被其他玩家购买，请稍后再试。"
+
+market-item-sold: "&c这个商品已经被购买或下架。"
+
+market-delivery-queued: "&e你的背包空间不足，商品已进入待领取队列。"
+
+market-delivery-claimed: "&a已领取待发放商品。"
+
+market-delivery-empty: "&7没有待领取商品。"
