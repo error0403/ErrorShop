@@ -34,6 +34,12 @@ ErrorShop is a lightweight shop plugin for Paper servers. You can use it for ser
   MiniMessage support: modern MiniMessage formatting is supported, while legacy `&` color codes still work.
 - 💰 Vault 可选：需要真实经济时接 Vault，不接也可以先测试菜单和配置。  
   Optional Vault economy: use Vault for real money transactions, or keep it disabled while testing menus and config.
+- 🌐 群组市场：可选 MySQL 共享玩家市场数据，并用 Redis 广播市场事件，适合生存群组、子服网络和多节点市场。  
+  Group market: optionally share player-market data through MySQL and broadcast market events through Redis, suitable for survival networks and multi-server groups.
+- 🔒 防重复购买：MySQL 模式下购买会先锁定商品，降低多服同时点击导致重复成交的风险。  
+  Double-buy protection: MySQL mode reserves a listing before purchase, reducing duplicate sales when multiple servers click at the same time.
+- 🎁 离线收益与待领取：卖家离线时收益会暂存，买家背包满时商品会进入待领取队列。  
+  Offline earnings and queued delivery: seller earnings can be stored while offline, and full-inventory purchases are queued for later delivery.
 
 ## ✅ 支持版本 / Compatibility
 
@@ -98,10 +104,36 @@ settings:
   default-menu: main
 
 market:
+  backend: local # local / mysql
   max-listings-per-player: 20
+  groups:
+    default:
+      slots: 9
+    vip:
+      permission: "errorshop.market.vip"
+      slots: 18
 
 currency:
   provider: none
+
+cluster:
+  enabled: false
+  group: "default"
+  server-id: "survival-1"
+  redis:
+    enabled: false
+    host: "localhost"
+    port: 6379
+    channel: "errorshop:market"
+
+database:
+  mysql:
+    host: "localhost"
+    port: 3306
+    database: "errorshop"
+    username: "root"
+    password: ""
+    table-prefix: "errorshop_"
 ```
 
 ### `settings.default-shop`
@@ -140,6 +172,81 @@ market:
   max-listings-per-player: 50
 ```
 
+
+### `market.backend`
+
+玩家市场后端。默认 `local` 使用本地 YAML 文件，适合单服、测试服和不想配置数据库的小服。
+
+Player market backend. The default `local` mode uses local YAML storage, which is best for single-server setups and quick testing.
+
+如果你在群组服里想让多个子服共享同一个玩家市场，可以开启群组模式并切换为 MySQL：
+
+For a server group/network where multiple servers should share one player market, enable cluster mode and switch the backend to MySQL:
+
+```yaml
+market:
+  backend: mysql
+cluster:
+  enabled: true
+  group: "survival"
+  server-id: "survival-1"
+database:
+  mysql:
+    host: "127.0.0.1"
+    port: 3306
+    database: "errorshop"
+    username: "errorshop"
+    password: "change-this"
+    table-prefix: "errorshop_"
+```
+
+MySQL 模式会把上架商品、商品状态、离线卖家收益和买家待领取商品写入数据库。购买时会先把商品从 `ACTIVE` 锁定为 `LOCKED`，只有一个服务器能锁定成功，用来降低跨服重复购买风险。
+
+MySQL mode stores listings, listing status, pending seller earnings, and queued buyer deliveries in the database. A purchase first reserves the listing by moving it from `ACTIVE` to `LOCKED`, so only one server can proceed and duplicate cross-server purchases are reduced.
+
+### `market.groups`
+
+权限组上架数量限制。玩家匹配多个权限组时，取最大的 `slots`。
+
+Permission-based listing limits. If a player matches multiple groups, the largest `slots` value is used.
+
+```yaml
+market:
+  groups:
+    default:
+      slots: 9
+    vip:
+      permission: "errorshop.market.vip"
+      slots: 18
+    svip:
+      permission: "errorshop.market.svip"
+      slots: 27
+```
+
+### `cluster.redis`
+
+Redis 是群组市场的事件总线，不是商品数据源。商品数据仍以 MySQL 为准。Redis 用于广播上架、购买等市场事件，并通过 `group` 和 `server-id` 过滤自己服务器或其它群组的消息。
+
+Redis is the event bus for group markets, not the source of listing data. MySQL remains the source of truth. Redis broadcasts market events such as listing creation and purchase, while `group` and `server-id` are used to filter events from the same server or from other groups.
+
+```yaml
+cluster:
+  enabled: true
+  group: "survival"
+  server-id: "survival-1"
+  redis:
+    enabled: true
+    host: "127.0.0.1"
+    port: 6379
+    password: ""
+    database: 0
+    channel: "errorshop:market"
+```
+
+说明：当前 Redis 主要用于事件通知和后续界面刷新扩展，市场列表读取仍来自后端存储。正式服启用前建议在测试环境验证 MySQL 和 Redis 连接。
+
+Note: Redis currently acts mainly as event notification and a foundation for future UI refresh behavior. Market listings are still loaded from the backend storage. Test MySQL and Redis connectivity before enabling it on a production network.
+
 ### `currency.provider`
 
 货币模式。`none` 表示不接入 Vault 经济，适合先测试菜单、商店显示和市场流程。
@@ -171,9 +278,9 @@ When Vault is enabled:
 
 ## 🗄️ database.yml 怎么配置 / How to configure database.yml
 
-`database.yml` 目前主要用于配置玩家市场数据文件位置。
+`database.yml` 用于本地市场文件配置。群组市场的 MySQL 连接项在 `config.yml` 的 `database.mysql` 中配置。
 
-`database.yml` currently controls where player market data is stored.
+`database.yml` controls local market file storage. Group-market MySQL connection settings are configured under `database.mysql` in `config.yml`.
 
 ```yaml
 storage:
@@ -411,6 +518,86 @@ Notes:
 - 玩家不能购买自己上架的商品。 / Players cannot buy their own listings.
 - 每个玩家上架数量受 `market.max-listings-per-player` 控制。 / Listing count is controlled by `market.max-listings-per-player`.
 
+
+## 🌐 群组市场 / Group market
+
+ErrorShop 0.16 增加了面向群组服的玩家市场能力。它的设计思路是：官方商店和自定义菜单继续由各服务器本地 YAML 控制，玩家市场可以选择共享到 MySQL，并通过 Redis 广播市场事件。
+
+ErrorShop 0.16 adds group-server player-market support. Server shops and custom menus remain local YAML configuration, while the player market can be shared through MySQL and market events can be broadcast through Redis.
+
+### 能做到什么 / What it can do
+
+- 多个子服共享同一个玩家市场列表。  
+  Multiple servers can share the same player-market listing list.
+- 上架、购买、售出、下架状态存入 MySQL。  
+  Listing creation, purchase, sold status, and removed status are stored in MySQL.
+- 购买前先锁定商品，降低多服同时购买造成重复成交的风险。  
+  Listings are locked before purchase to reduce duplicate sales across servers.
+- 卖家离线或不在本服时，收益会进入待领取记录。  
+  Seller earnings can be stored when the seller is offline or on another server.
+- 买家背包满时，商品会进入待领取队列。  
+  If the buyer inventory is full, the item is queued for later delivery.
+- 支持按权限组设置不同市场上架数量。  
+  Permission groups can define different listing limits.
+- Redis 可广播市场事件，并按 `cluster.group` 和 `cluster.server-id` 过滤消息。  
+  Redis can broadcast market events and filter messages by `cluster.group` and `cluster.server-id`.
+
+### 推荐配置 / Recommended setup
+
+```yaml
+market:
+  backend: mysql
+  fail-policy: "disable-market"
+  groups:
+    default:
+      slots: 9
+    vip:
+      permission: "errorshop.market.vip"
+      slots: 18
+    svip:
+      permission: "errorshop.market.svip"
+      slots: 27
+
+cluster:
+  enabled: true
+  group: "survival"
+  server-id: "survival-1" # 每个子服必须不同 / unique per server
+  redis:
+    enabled: true
+    host: "127.0.0.1"
+    port: 6379
+    password: ""
+    database: 0
+    channel: "errorshop:market"
+
+database:
+  mysql:
+    host: "127.0.0.1"
+    port: 3306
+    database: "errorshop"
+    username: "errorshop"
+    password: "change-this"
+    table-prefix: "errorshop_"
+    use-ssl: false
+```
+
+每个子服都使用同一个 MySQL 数据库；`cluster.group` 相同的服务器共享同一组市场事件；`cluster.server-id` 每个子服必须不同。
+
+All servers should use the same MySQL database. Servers with the same `cluster.group` share the same event group. `cluster.server-id` must be unique per server.
+
+### 上线前建议测试 / Recommended tests before production
+
+- A 服上架，B 服能看到。  
+  List on server A and verify it appears on server B.
+- A/B 两服同时点击购买同一商品，只能成功一次。  
+  Buy the same listing from A and B at the same time; only one purchase should succeed.
+- 卖家在另一个子服或离线时，收益能正确待领取。  
+  Seller earnings should be claimable when the seller is offline or on another server.
+- 买家背包满时，待领取商品不会丢失。  
+  Full-inventory purchases should be queued and not lost.
+- MySQL 或 Redis 断开时，插件不会复制物品或破坏市场数据。  
+  MySQL/Redis disconnects should not duplicate items or corrupt market data.
+
 ## 🔌 PlaceholderAPI 变量 / PlaceholderAPI placeholders
 
 当前版本没有提供确认可用的 ErrorShop 自定义 PAPI 变量。
@@ -439,15 +626,23 @@ settings:
   default-menu: main
 
 market:
+  backend: local
   max-listings-per-player: 20
 
 currency:
   provider: none
+
+cluster:
+  enabled: false
 ```
 
 - `settings.default-shop`: shop opened by `/errorshop shop` when no ID is provided.
 - `settings.default-menu`: menu opened by `/errorshop menu` when no ID is provided.
+- `market.backend`: use `local` for single-server YAML storage, or `mysql` for group-market storage.
 - `market.max-listings-per-player`: maximum active market listings per player.
+- `market.groups`: permission-based listing limits.
+- `cluster.enabled`: enable group-server market mode.
+- `cluster.redis`: optional Redis event bus for market notifications.
 - `currency.provider`: use `none` for preview/testing, or `vault` to use Vault economy.
 
 ### Storage config
@@ -482,7 +677,44 @@ ErrorShop 0.14 does not currently provide confirmed custom `%errorshop_*%` place
 
 ## 📌 版本更新记录 / Version History
 
+
 <details open>
+<summary><strong>v0.16 - 2026-05-14 CST</strong></summary>
+
+- 新增 MySQL 玩家市场后端，用于群组服共享玩家市场。
+- 新增 Redis Pub/Sub 市场事件广播，用于上架、购买等跨服事件通知。
+- 新增商品购买锁定流程：购买前将商品从 `ACTIVE` 锁定为 `LOCKED`，降低多服重复购买风险。
+- 新增数据库版离线卖家收益和买家待领取商品队列。
+- 保留本地 YAML 市场作为默认模式，小服和单服仍可零数据库使用。
+
+English:
+
+- Added MySQL-backed player-market storage for server groups.
+- Added Redis Pub/Sub market event broadcasting for listing and purchase events.
+- Added listing reservation: purchases move listings from `ACTIVE` to `LOCKED` first to reduce duplicate cross-server purchases.
+- Added database-backed pending seller earnings and queued buyer deliveries.
+- Kept local YAML market mode as the default lightweight path for single-server setups.
+
+</details>
+
+<details>
+<summary><strong>v0.15 - 2026-05-14 CST</strong></summary>
+
+- 新增群组市场基础结构。
+- 新增参考 PixelShop 分组思路的权限组市场上架数量限制。
+- 新增群组、服务器 ID、Redis 配置项预留。
+- 新增玩家市场后端抽象，为 MySQL + Redis 跨服市场做准备。
+
+English:
+
+- Added the first foundation for group-server market support.
+- Added permission-based market listing slots inspired by PixelShop-style market groups.
+- Added cluster, server ID, and Redis configuration fields.
+- Added the market backend abstraction as preparation for MySQL + Redis cross-server markets.
+
+</details>
+
+<details>
 <summary><strong>v0.14 - 2026-05-13 20:23 CST</strong></summary>
 
 - 新增 PlayerPoints 点券支持。
