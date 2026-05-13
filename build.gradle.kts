@@ -9,7 +9,7 @@ plugins {
 }
 
 group = "com.pixelserver.errorshop"
-version = "0.11"
+version = "0.12"
 
 easylib {
     env {
