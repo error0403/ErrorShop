@@ -2,6 +2,9 @@ package com.pixelserver.errorshop
 
 import org.bukkit.Bukkit
 import org.bukkit.ChatColor
+import net.kyori.adventure.text.Component
+import net.kyori.adventure.text.minimessage.MiniMessage
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import org.bukkit.command.Command
 import org.bukkit.command.CommandSender
 import org.bukkit.configuration.file.YamlConfiguration
@@ -65,39 +68,39 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
         if (args.isEmpty()) { help(sender); return true }
         when (args[0].lowercase()) {
-            "reload" -> { if (!sender.hasPermission("errorshop.reload")) return deny(sender); reloadAll(); sender.sendMessage(msg("reloaded")); return true }
+            "reload" -> { if (!sender.hasPermission("errorshop.reload")) return deny(sender); reloadAll(); sendText(sender, msg("reloaded")); return true }
             "shop" -> { val p = sender as? Player ?: return playerOnly(sender); openShop(p, args.getOrNull(1) ?: (config.getString("settings.default-shop") ?: "default")); return true }
             "market" -> { val p = sender as? Player ?: return playerOnly(sender); if (!p.hasPermission("errorshop.market.buy")) return deny(p); openMarket(p); return true }
             "sell" -> { sellToMarket(sender, args); return true }
             "menu" -> { val p = sender as? Player ?: return playerOnly(sender); openMenu(p, args.getOrNull(1) ?: (config.getString("settings.default-menu") ?: "main")); return true }
-            else -> sender.sendMessage(msg("unknown-command"))
+            else -> sendText(sender, msg("unknown-command"))
         }
         return true
     }
 
     private fun help(sender: CommandSender) {
-        sender.sendMessage(color("&6/errorshop shop <id> &7打开官方商店"))
-        sender.sendMessage(color("&6/errorshop market &7打开全球市场"))
-        sender.sendMessage(color("&6/errorshop sell <price> &7上架手持物品"))
-        sender.sendMessage(color("&6/errorshop menu <id> &7打开自定义菜单"))
-        sender.sendMessage(color("&6/errorshop reload &7重载配置"))
+        sendText(sender, "&6/errorshop shop <id> &7打开官方商店")
+        sendText(sender, "&6/errorshop market &7打开全球市场")
+        sendText(sender, "&6/errorshop sell <price> &7上架手持物品")
+        sendText(sender, "&6/errorshop menu <id> &7打开自定义菜单")
+        sendText(sender, "&6/errorshop reload &7重载配置")
     }
 
     private fun sellToMarket(sender: CommandSender, args: Array<out String>) {
         val p = sender as? Player ?: run { playerOnly(sender); return }
         if (!p.hasPermission("errorshop.market.sell")) { deny(p); return }
-        val price = args.getOrNull(1)?.toDoubleOrNull()?.takeIf { it > 0 } ?: run { p.sendMessage(msg("invalid-price")); return }
+        val price = args.getOrNull(1)?.toDoubleOrNull()?.takeIf { it > 0 } ?: run { sendText(p, msg("invalid-price")); return }
         val item = p.inventory.itemInMainHand
-        if (item.type.isAir) { p.sendMessage(msg("empty-hand")); return }
+        if (item.type.isAir) { sendText(p, msg("empty-hand")); return }
         val limit = config.getInt("market.max-listings-per-player", 20)
-        if (market.countBySeller(p.uniqueId) >= limit) { p.sendMessage(msg("listing-limit")); return }
+        if (market.countBySeller(p.uniqueId) >= limit) { sendText(p, msg("listing-limit")); return }
         market.add(p.uniqueId, p.name, item.clone(), price)
         item.amount = 0
-        p.sendMessage(msg("sell-success", mapOf("price" to price.toString())))
+        sendText(p, msg("sell-success", mapOf("price" to price.toString())))
     }
 
     private fun openShop(player: Player, id: String) {
-        val shop = shops[id] ?: run { player.sendMessage(msg("shop-not-found")); return }
+        val shop = shops[id] ?: run { sendText(player, msg("shop-not-found")); return }
         if (!player.hasPermission(shop.permission ?: "errorshop.shop.$id")) { deny(player); return }
         val inv = Bukkit.createInventory(null, 54, color(shop.title))
         shop.items.values.take(45).forEachIndexed { idx, item -> inv.setItem(idx, item.toIcon()) }
@@ -107,13 +110,13 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
     private fun openMarket(player: Player) {
         val listings = market.listings()
         val inv = Bukkit.createInventory(null, 54, color("&b全球市场"))
-        if (listings.isEmpty()) player.sendMessage(msg("market-empty"))
+        if (listings.isEmpty()) sendText(player, msg("market-empty"))
         listings.take(45).forEachIndexed { idx, listing -> inv.setItem(idx, listing.icon()) }
         player.openInventory(inv); openSessions[player.uniqueId] = OpenSession.Market
     }
 
     private fun openMenu(player: Player, id: String) {
-        val menu = menus[id] ?: run { player.sendMessage(msg("menu-not-found")); return }
+        val menu = menus[id] ?: run { sendText(player, msg("menu-not-found")); return }
         if (!player.hasPermission("errorshop.menu.$id")) { deny(player); return }
         val rows = max(1, menu.layout.size).coerceAtMost(6)
         val inv = Bukkit.createInventory(null, rows * 9, color(menu.title))
@@ -151,23 +154,23 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
         val item = ItemStack(match.material, match.amount)
         val meta = item.itemMeta
         if (meta != null) { meta.setDisplayName(color(match.name ?: match.material.name)); item.itemMeta = meta }
-        if (!economy.available()) { player.sendMessage(msg("vault-missing")); return }
-        if (match.buy > 0 && !economy.withdraw(player, match.buy)) { player.sendMessage(msg("not-enough-money")); return }
+        if (!economy.available()) { sendText(player, msg("vault-missing")); return }
+        if (match.buy > 0 && !economy.withdraw(player, match.buy)) { sendText(player, msg("not-enough-money")); return }
         if (!hasSpaceFor(player, item)) {
             if (match.buy > 0) economy.deposit(player, match.buy)
-            player.sendMessage(msg("inventory-full"))
+            sendText(player, msg("inventory-full"))
             return
         }
         player.inventory.addItem(item)
-        player.sendMessage(msg("buy-success", mapOf("item" to match.material.name, "amount" to match.amount.toString(), "price" to match.buy.toString())))
+        sendText(player, msg("buy-success", mapOf("item" to match.material.name, "amount" to match.amount.toString(), "price" to match.buy.toString())))
     }
 
     private fun handleMarketClick(player: Player, slot: Int) {
         val listing = market.listings().getOrNull(slot) ?: return
-        if (listing.seller == player.uniqueId) { player.sendMessage(msg("market-own-item")); return }
-        if (!economy.available()) { player.sendMessage(msg("vault-missing")); return }
-        if (!hasSpaceFor(player, listing.item)) { player.sendMessage(msg("inventory-full")); return }
-        if (listing.price > 0 && !economy.withdraw(player, listing.price)) { player.sendMessage(msg("not-enough-money")); return }
+        if (listing.seller == player.uniqueId) { sendText(player, msg("market-own-item")); return }
+        if (!economy.available()) { sendText(player, msg("vault-missing")); return }
+        if (!hasSpaceFor(player, listing.item)) { sendText(player, msg("inventory-full")); return }
+        if (listing.price > 0 && !economy.withdraw(player, listing.price)) { sendText(player, msg("not-enough-money")); return }
         market.remove(listing.id)
         val seller = Bukkit.getPlayer(listing.seller)
         if (seller != null) {
@@ -176,7 +179,7 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
             market.addPendingEarning(listing.seller, listing.price)
         }
         player.inventory.addItem(listing.item.clone())
-        player.sendMessage(msg("market-bought", mapOf("price" to listing.price.toString())))
+        sendText(player, msg("market-bought", mapOf("price" to listing.price.toString())))
     }
 
     private fun hasSpaceFor(player: Player, item: ItemStack): Boolean {
@@ -197,7 +200,7 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
         val amount = market.takePendingEarning(player.uniqueId)
         if (amount <= 0) return
         if (economy.deposit(player, amount)) {
-            player.sendMessage(msg("pending-earnings-paid", mapOf("amount" to amount.toString())))
+            sendText(player, msg("pending-earnings-paid", mapOf("amount" to amount.toString())))
         } else {
             market.restorePendingEarning(player.uniqueId, amount)
         }
@@ -226,7 +229,7 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
         when {
             action.startsWith("[console]", true) -> Bukkit.dispatchCommand(Bukkit.getConsoleSender(), action.removePrefixIgnoreCase("[console]").trim().replace("%player%", player.name))
             action.startsWith("[player]", true) -> player.performCommand(action.removePrefixIgnoreCase("[player]").trim())
-            action.startsWith("[tell]", true) -> player.sendMessage(color(action.removePrefixIgnoreCase("[tell]").trim()))
+            action.startsWith("[tell]", true) -> sendText(player, action.removePrefixIgnoreCase("[tell]").trim())
             action.startsWith("[shop]", true) -> openShop(player, action.removePrefixIgnoreCase("[shop]").trim())
             action.startsWith("[market]", true) -> openMarket(player)
             action.startsWith("[menu]", true) -> openMenu(player, action.removePrefixIgnoreCase("[menu]").trim())
@@ -234,15 +237,22 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
     }
 
     private fun String.removePrefixIgnoreCase(prefix: String): String = if (startsWith(prefix, true)) substring(prefix.length) else this
-    private fun playerOnly(sender: CommandSender): Boolean { sender.sendMessage(msg("player-only")); return true }
-    private fun deny(sender: CommandSender): Boolean { sender.sendMessage(msg("no-permission")); return true }
+    private fun playerOnly(sender: CommandSender): Boolean { sendText(sender, msg("player-only")); return true }
+    private fun deny(sender: CommandSender): Boolean { sendText(sender, msg("no-permission")); return true }
     private fun msg(key: String, vars: Map<String, String> = emptyMap()): String {
-        var text = YamlConfiguration.loadConfiguration(File(dataFolder, "lang.yml")).getString(key) ?: key
-        val prefix = YamlConfiguration.loadConfiguration(File(dataFolder, "lang.yml")).getString("prefix") ?: ""
-        vars.forEach { (k, v) -> text = text.replace("{$k}", v) }
-        return color(prefix + text)
+        val lang = YamlConfiguration.loadConfiguration(File(dataFolder, "lang.yml"))
+        var text = lang.getString(key) ?: key
+        val prefix = lang.getString("prefix") ?: ""
+        vars.forEach { (k, v) -> text = text.replace("{$k}", v).replace("%$k%", v) }
+        return prefix + text
     }
-    private fun color(s: String): String = ChatColor.translateAlternateColorCodes('&', s)
+    private fun color(s: String): String = LegacyComponentSerializer.legacySection().serialize(formatText(s))
+    private fun sendText(sender: CommandSender, raw: String) { sender.sendMessage(formatText(raw)) }
+    private fun formatText(raw: String): Component {
+        val legacy = ChatColor.translateAlternateColorCodes('&', raw)
+        return runCatching { MiniMessage.miniMessage().deserialize(legacy) }
+            .getOrElse { LegacyComponentSerializer.legacySection().deserialize(legacy) }
+    }
     companion object { val openSessions = mutableMapOf<UUID, OpenSession>() }
 }
 

@@ -217,6 +217,28 @@ market-bought: "&a购买成功，价格：&e%price%"
 - `%price%` 会被替换成价格。
 - `prefix` 会加在大多数消息前面。
 
+
+## 🎨 MiniMessage 支持
+
+ErrorShop 0.13 开始支持 MiniMessage 文本格式，同时兼容传统 `&` 颜色代码。
+
+你可以在 `lang.yml`、商店名称、物品名称、lore、菜单标题和菜单文本里使用：
+
+```yaml
+prefix: "<gray>[<green>ErrorShop</green>]</gray> "
+listing-limit: "<red>你上架的商品已经达到上限。</red>"
+sell-success: "<green>已上架，价格：</green><yellow>{price}</yellow>"
+```
+
+也可以继续使用旧写法：
+
+```yaml
+prefix: "&8[&aErrorShop&8] &f"
+listing-limit: "&c你上架的商品已经达到上限。"
+```
+
+推荐新配置使用 MiniMessage，老配置不用立刻改。
+
 ## 🏪 shops/ 商店怎么写
 
 一个商店就是 `shops/` 里的一个 yml 文件。
@@ -376,4 +398,4 @@ Players need:
 
 ### PlaceholderAPI
 
-ErrorShop 0.12 does not currently provide confirmed custom `%errorshop_*%` placeholders.
+ErrorShop 0.13 does not currently provide confirmed custom `%errorshop_*%` placeholders.

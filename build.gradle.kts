@@ -9,7 +9,7 @@ plugins {
 }
 
 group = "com.pixelserver.errorshop"
-version = "0.12"
+version = "0.13"
 
 easylib {
     env {
@@ -34,6 +34,8 @@ repositories {
 dependencies {
     implementation("org.jetbrains.kotlinx:kotlinx-coroutines-core:1.7.3")
     implementation(kotlin("stdlib-jdk8"))
+    implementation("net.kyori:adventure-text-minimessage:4.17.0")
+    implementation("net.kyori:adventure-text-serializer-legacy:4.17.0")
     compileOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
 
 //    compileOnly("org.spigotmc:spigot-api:1.18.2-R0.1-SNAPSHOT")

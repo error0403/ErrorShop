@@ -1,11 +1,18 @@
 package com.pixelserver.errorshop
 
 import org.bukkit.ChatColor
+import net.kyori.adventure.text.minimessage.MiniMessage
+import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer
 import org.bukkit.Material
 import org.bukkit.configuration.file.YamlConfiguration
 import org.bukkit.inventory.ItemStack
 
-fun colorText(s: String): String = ChatColor.translateAlternateColorCodes('&', s)
+fun colorText(s: String): String {
+    val legacy = ChatColor.translateAlternateColorCodes('&', s)
+    return runCatching {
+        LegacyComponentSerializer.legacySection().serialize(MiniMessage.miniMessage().deserialize(legacy))
+    }.getOrElse { legacy }
+}
 
 data class ShopConfig(val id: String, val title: String, val permission: String?, val items: Map<String, ShopItem>) {
     companion object {
