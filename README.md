@@ -4,11 +4,15 @@
 
 作者 QQ：`1955008190`
 
-如果你在使用 ErrorShop 时遇到问题、发现 Bug，或者有功能建议，可以通过 QQ 或 GitHub Issues 联系作者。欢迎反馈 Bug 和改进建议，插件会持续维护，基本每天都会修复和更新。
+ErrorShop 交流群：<https://qm.qq.com/q/bG3ooHYT3q>
+
+如果你在使用 ErrorShop 时遇到问题、发现 Bug，或者有功能建议，可以通过 QQ、交流群或 GitHub Issues 联系作者。欢迎反馈 Bug 和改进建议，插件会持续维护，基本每天都会修复和更新。
 
 Author QQ: `1955008190`
 
-If you run into issues, find bugs, or have feature suggestions, you can contact the author through QQ or GitHub Issues. Bug reports and suggestions are welcome. The plugin is actively maintained and updated frequently.
+ErrorShop QQ Group: <https://qm.qq.com/q/bG3ooHYT3q>
+
+If you run into issues, find bugs, or have feature suggestions, you can contact the author through QQ, the QQ group, or GitHub Issues. Bug reports and suggestions are welcome. The plugin is actively maintained and updated frequently.
 
 
 ErrorShop 是一个给 Paper 服务器用的轻量商店插件。你可以用它做服务器官方商店、玩家交易市场，也可以用 YAML 写一些简单的菜单入口。
