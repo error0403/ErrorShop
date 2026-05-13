@@ -1,5 +1,16 @@
 # ErrorShop - 轻量商店、玩家市场和自定义菜单
 
+## 📮 作者联系 / Contact the Author
+
+作者 QQ：`1955008190`
+
+如果你在使用 ErrorShop 时遇到问题、发现 Bug，或者有功能建议，可以通过 QQ 或 GitHub Issues 联系作者。欢迎反馈 Bug 和改进建议，插件会持续维护，基本每天都会修复和更新。
+
+Author QQ: `1955008190`
+
+If you run into issues, find bugs, or have feature suggestions, you can contact the author through QQ or GitHub Issues. Bug reports and suggestions are welcome. The plugin is actively maintained and updated frequently.
+
+
 ErrorShop 是一个给 Paper 服务器用的轻量商店插件。你可以用它做服务器官方商店、玩家交易市场，也可以用 YAML 写一些简单的菜单入口。
 
 ErrorShop is a lightweight shop plugin for Paper servers. You can use it for server shops, player-to-player market listings, and simple YAML-based GUI menus.
@@ -365,20 +376,6 @@ Do not use placeholders like this unless a later version explicitly adds them:
 如果你的服务器已经安装 PlaceholderAPI，其它插件提供的变量仍然可以按你自己的菜单/文本系统使用，但 ErrorShop 当前没有公开自己的变量列表。
 
 If your server already uses PlaceholderAPI, placeholders from other plugins can still be used by your own menu or text systems. ErrorShop simply does not publish its own placeholder list at the moment.
-
-## 📮 联系与反馈 / Contact & Feedback
-
-如果你在使用 ErrorShop 时遇到问题、发现 Bug，或者有功能建议，可以随时联系：
-
-If you run into issues, find a bug, or have feature suggestions, feel free to contact me anytime:
-
-- QQ：`1955008190`
-- 欢迎反馈 Bug 和改进建议
-- 插件会持续维护，基本每天都会修复和更新
-
-- QQ: `1955008190`
-- Bug reports and suggestions are welcome
-- The plugin is actively maintained and updated frequently
 
 ## 🇬🇧 English Quick Reference
 
