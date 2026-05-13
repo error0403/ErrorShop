@@ -5,6 +5,27 @@ import org.bukkit.inventory.ItemStack
 import java.io.File
 import java.util.UUID
 
+data class MarketGroup(val id: String, val permission: String?, val slots: Int)
+
+data class ClusterSettings(
+    val enabled: Boolean,
+    val group: String,
+    val serverId: String,
+    val redisEnabled: Boolean,
+    val redisChannel: String
+)
+
+interface MarketBackend {
+    fun load(dataFolder: File, database: YamlConfiguration)
+    fun listings(): List<MarketListing>
+    fun countBySeller(seller: UUID): Int
+    fun add(seller: UUID, sellerName: String, item: ItemStack, price: Double)
+    fun remove(id: String)
+    fun addPendingEarning(seller: UUID, amount: Double)
+    fun takePendingEarning(seller: UUID): Double
+    fun restorePendingEarning(seller: UUID, amount: Double)
+}
+
 data class MarketListing(val id: String, val seller: UUID, val sellerName: String, val item: ItemStack, val price: Double) {
     fun icon(): ItemStack {
         val copy = item.clone()
@@ -21,12 +42,12 @@ data class MarketListing(val id: String, val seller: UUID, val sellerName: Strin
     }
 }
 
-class MarketStore {
+class MarketStore : MarketBackend {
     private val listings = linkedMapOf<String, MarketListing>()
     private val pendingEarnings = linkedMapOf<UUID, Double>()
     private var file: File? = null
 
-    fun load(dataFolder: File, database: YamlConfiguration) {
+    override fun load(dataFolder: File, database: YamlConfiguration) {
         file = resolveStorageFile(dataFolder, database)
         listings.clear(); pendingEarnings.clear()
         val f = file ?: return
@@ -47,24 +68,24 @@ class MarketStore {
         }
     }
 
-    fun listings(): List<MarketListing> = listings.values.toList()
-    fun countBySeller(seller: UUID): Int = listings.values.count { it.seller == seller }
-    fun add(seller: UUID, sellerName: String, item: ItemStack, price: Double) { val id = System.currentTimeMillis().toString(36) + "-" + seller.toString().take(8); listings[id] = MarketListing(id, seller, sellerName, item, price); save() }
-    fun remove(id: String) { listings.remove(id); save() }
+    override fun listings(): List<MarketListing> = listings.values.toList()
+    override fun countBySeller(seller: UUID): Int = listings.values.count { it.seller == seller }
+    override fun add(seller: UUID, sellerName: String, item: ItemStack, price: Double) { val id = System.currentTimeMillis().toString(36) + "-" + seller.toString().take(8); listings[id] = MarketListing(id, seller, sellerName, item, price); save() }
+    override fun remove(id: String) { listings.remove(id); save() }
 
-    fun addPendingEarning(seller: UUID, amount: Double) {
+    override fun addPendingEarning(seller: UUID, amount: Double) {
         if (amount <= 0) return
         pendingEarnings[seller] = (pendingEarnings[seller] ?: 0.0) + amount
         save()
     }
 
-    fun takePendingEarning(seller: UUID): Double {
+    override fun takePendingEarning(seller: UUID): Double {
         val amount = pendingEarnings.remove(seller) ?: return 0.0
         save()
         return amount
     }
 
-    fun restorePendingEarning(seller: UUID, amount: Double) = addPendingEarning(seller, amount)
+    override fun restorePendingEarning(seller: UUID, amount: Double) = addPendingEarning(seller, amount)
 
     private fun save() {
         val f = file ?: return

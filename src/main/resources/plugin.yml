@@ -1,6 +1,6 @@
 name: ErrorShop
 main: com.pixelserver.errorshop.ErrorShopPlugin
-version: 0.14
+version: 0.15
 authors: [PixelServer]
 api-version: '1.21'
 folia-supported: true

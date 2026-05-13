@@ -6,3 +6,9 @@ storage:
     file: market.yml
   sqlite:
     file: market.db
+
+
+# Future cluster market storage. Current 0.15 keeps local YAML backend by default; MySQL backend will use these settings.
+cluster-market:
+  enabled: false
+  table-prefix: "errorshop_"

@@ -20,3 +20,7 @@ inventory-full: "&cYour inventory does not have enough space."
 points-missing: "&c没有找到点券插件，无法完成交易。"
 not-enough-points: "&c你的点券不足。"
 not-enough-any: "&c你的余额或点券都不足。需要 {price} 金币或 {points} 点券。"
+
+market-cluster-sync: "&7市场群组同步已触发。"
+
+market-cluster-unavailable: "&c群组市场暂不可用，请稍后再试。"

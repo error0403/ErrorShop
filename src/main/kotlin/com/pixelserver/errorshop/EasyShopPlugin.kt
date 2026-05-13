@@ -23,7 +23,9 @@ import kotlin.math.max
 class ErrorShopPlugin : EasyPlugin(), Listener {
     private val shops = mutableMapOf<String, ShopConfig>()
     private val menus = mutableMapOf<String, MenuConfig>()
-    private val market = MarketStore()
+    private val market: MarketBackend = MarketStore()
+    private var marketGroups: List<MarketGroup> = emptyList()
+    private lateinit var clusterSettings: ClusterSettings
     private lateinit var economy: EconomyBridge
 
     override fun enable() {
@@ -41,7 +43,7 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
     }
 
     fun reloadAll() {
-        reloadConfig(); economy.setup(); loadShops(); loadMenus(); market.load(dataFolder, YamlConfiguration.loadConfiguration(File(dataFolder, "database.yml")))
+        reloadConfig(); economy.setup(); loadShops(); loadMenus(); loadMarketSettings(); market.load(dataFolder, YamlConfiguration.loadConfiguration(File(dataFolder, "database.yml")))
     }
 
     private fun saveResourceIfMissing(path: String) {
@@ -63,6 +65,37 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
             val id = file.nameWithoutExtension
             menus[id] = MenuConfig.from(id, YamlConfiguration.loadConfiguration(file))
         }
+    }
+
+
+    private fun loadMarketSettings() {
+        clusterSettings = ClusterSettings(
+            enabled = config.getBoolean("cluster.enabled", false),
+            group = config.getString("cluster.group") ?: "default",
+            serverId = config.getString("cluster.server-id") ?: server.name,
+            redisEnabled = config.getBoolean("cluster.redis.enabled", false),
+            redisChannel = config.getString("cluster.redis.channel") ?: "errorshop:market"
+        )
+        val section = config.getConfigurationSection("market.groups")
+        marketGroups = section?.getKeys(false)?.map { id ->
+            val path = "market.groups.$id"
+            MarketGroup(
+                id = id,
+                permission = config.getString("$path.permission"),
+                slots = config.getInt("$path.slots", config.getInt("market.max-listings-per-player", 20))
+            )
+        }?.filter { it.slots > 0 } ?: listOf(MarketGroup("default", null, config.getInt("market.max-listings-per-player", 20)))
+    }
+
+    private fun marketLimit(player: Player): Int {
+        if (marketGroups.isEmpty()) return config.getInt("market.max-listings-per-player", 20)
+        return marketGroups.filter { it.permission.isNullOrBlank() || player.hasPermission(it.permission) }
+            .maxOfOrNull { it.slots } ?: config.getInt("market.max-listings-per-player", 20)
+    }
+
+    private fun publishMarketEvent(type: String, listingId: String? = null) {
+        if (!::clusterSettings.isInitialized || !clusterSettings.enabled || !clusterSettings.redisEnabled) return
+        logger.info("[cluster:${clusterSettings.group}] $type listing=${listingId ?: "-"} channel=${clusterSettings.redisChannel} server=${clusterSettings.serverId}")
     }
 
     override fun onCommand(sender: CommandSender, command: Command, label: String, args: Array<out String>): Boolean {
@@ -92,9 +125,10 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
         val price = args.getOrNull(1)?.toDoubleOrNull()?.takeIf { it > 0 } ?: run { sendText(p, msg("invalid-price")); return }
         val item = p.inventory.itemInMainHand
         if (item.type.isAir) { sendText(p, msg("empty-hand")); return }
-        val limit = config.getInt("market.max-listings-per-player", 20)
+        val limit = marketLimit(p)
         if (market.countBySeller(p.uniqueId) >= limit) { sendText(p, msg("listing-limit")); return }
         market.add(p.uniqueId, p.name, item.clone(), price)
+        publishMarketEvent("LISTING_CREATED")
         item.amount = 0
         sendText(p, msg("sell-success", mapOf("price" to price.toString())))
     }
@@ -168,6 +202,7 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
         if (!hasSpaceFor(player, listing.item)) { sendText(player, msg("inventory-full")); return }
         if (listing.price > 0 && !economy.withdraw(player, listing.price)) { sendText(player, msg("not-enough-money")); return }
         market.remove(listing.id)
+        publishMarketEvent("LISTING_BOUGHT", listing.id)
         val seller = Bukkit.getPlayer(listing.seller)
         if (seller != null) {
             if (!economy.deposit(seller, listing.price)) market.addPendingEarning(listing.seller, listing.price)

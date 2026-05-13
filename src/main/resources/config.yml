@@ -6,6 +6,16 @@ currency:
   # vault: use Vault economy when Vault is installed
   provider: none
 market:
+  # Permission-based listing limits. If a player matches multiple groups, the largest slots value is used.
+  groups:
+    default:
+      slots: 9
+    vip:
+      permission: "errorshop.market.vip"
+      slots: 18
+    svip:
+      permission: "errorshop.market.svip"
+      slots: 27
   tax-rate: 0.0
   max-listings-per-player: 20
   return-items-on-shutdown: false
@@ -18,3 +28,17 @@ points:
   enabled: false
   provider: playerpoints
   name: 点券
+
+
+# Cluster/group-server support. Disabled by default to keep single-server setup simple.
+cluster:
+  enabled: false
+  group: "default"
+  server-id: "survival-1"
+  redis:
+    enabled: false
+    host: "localhost"
+    port: 6379
+    password: ""
+    database: 0
+    channel: "errorshop:market"
