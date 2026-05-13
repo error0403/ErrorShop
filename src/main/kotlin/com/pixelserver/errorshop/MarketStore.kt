@@ -248,7 +248,7 @@ class MysqlMarketBackend(private val settings: MysqlSettings) : MarketBackend {
     override fun markSold(id: String, buyer: UUID) { connection().use { c -> c.prepareStatement("UPDATE $listingsTable SET status='SOLD',buyer_uuid=?,updated_at=? WHERE id=? AND status='LOCKED'").use { ps -> ps.setString(1, buyer.toString()); ps.setLong(2, System.currentTimeMillis()); ps.setString(3, id); ps.executeUpdate() } } }
     override fun releaseReservation(id: String) { connection().use { c -> c.prepareStatement("UPDATE $listingsTable SET status='ACTIVE',buyer_uuid=NULL,locked_at=NULL,updated_at=? WHERE id=? AND status='LOCKED'").use { ps -> ps.setLong(1, System.currentTimeMillis()); ps.setString(2, id); ps.executeUpdate() } } }
 
-    override fun addPendingEarning(seller: UUID, amount: Double) { if (amount <= 0) return; connection().use { c -> c.prepareStatement("INSERT INTO $pendingTable(seller_uuid,amount) VALUES(?,?) ON DUPLICATE KEY UPDATE amount=amount+VALUES(amount)").use { ps -> ps.setString(1, seller.toString()); ps.setDouble(2, amount); ps.executeUpdate() } } }
+    override fun addPendingEarning(seller: UUID, amount: Double) { if (amount <= 0) return; connection().use { c -> c.prepareStatement("INSERT INTO $pendingTable(seller_uuid,amount) VALUES(?,?) ON DUPLICATE KEY UPDATE amount=amount+?").use { ps -> ps.setString(1, seller.toString()); ps.setDouble(2, amount); ps.setDouble(3, amount); ps.executeUpdate() } } }
     override fun takePendingEarning(seller: UUID): Double = connection().use { c ->
         c.autoCommit = false
         try {

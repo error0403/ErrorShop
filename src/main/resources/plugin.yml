@@ -4,7 +4,7 @@ version: 0.16
 authors: [PixelServer]
 api-version: '1.21'
 folia-supported: true
-softdepend: [Vault, PlaceholderAPI]
+softdepend: [Vault, PlaceholderAPI, PlayerPoints]
 commands:
   errorshop:
     description: ErrorShop main command
@@ -22,4 +22,3 @@ permissions:
   errorshop.menu.main:
     default: true
 
-softdepend: [Vault, PlayerPoints]

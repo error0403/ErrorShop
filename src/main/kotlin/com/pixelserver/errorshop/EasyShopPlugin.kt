@@ -52,7 +52,7 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
     }
 
     fun reloadAll() {
-        reloadConfig(); economy.setup(); loadShops(); loadMenus(); loadMarketSettings(); setupMarketBackend(); setupRedisBus(); market.load(dataFolder, YamlConfiguration.loadConfiguration(File(dataFolder, "database.yml")))
+        reloadConfig(); economy.setup(); loadShops(); loadMenus(); loadMarketSettings(); setupMarketBackend(); setupRedisBus(); loadMarketBackend()
     }
 
     private fun saveResourceIfMissing(path: String) {
@@ -76,6 +76,20 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
         }
     }
 
+
+    private fun loadMarketBackend() {
+        runCatching { market.load(dataFolder, YamlConfiguration.loadConfiguration(File(dataFolder, "database.yml"))) }
+            .onFailure {
+                logger.warning("Market backend load failed: ${it.message}")
+                if (clusterSettings.enabled && clusterSettings.marketBackend.equals("mysql", true) && !clusterSettings.failPolicy.equals("disable-market", true)) {
+                    logger.warning("Falling back to local YAML market backend because fail-policy=${clusterSettings.failPolicy}")
+                    market = MarketStore()
+                    market.load(dataFolder, YamlConfiguration.loadConfiguration(File(dataFolder, "database.yml")))
+                } else {
+                    throw it
+                }
+            }
+    }
 
     private fun loadMarketSettings() {
         clusterSettings = ClusterSettings(
@@ -272,33 +286,44 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
         val selected = market.listings().getOrNull(slot) ?: return
         if (selected.seller == player.uniqueId) { sendText(player, msg("market-own-item")); return }
         if (!economy.available()) { sendText(player, msg("vault-missing")); return }
-        if (selected.price > 0 && !economy.withdraw(player, selected.price)) { sendText(player, msg("not-enough-money")); return }
         val listing = market.reserve(selected.id, player.uniqueId)
         if (listing == null) {
-            if (selected.price > 0) economy.deposit(player, selected.price)
             sendText(player, msg("market-item-sold"))
             return
         }
+        var charged = false
         try {
+            if (listing.price > 0 && !economy.withdraw(player, listing.price)) {
+                market.releaseReservation(listing.id)
+                sendText(player, msg("not-enough-money"))
+                return
+            }
+            charged = listing.price > 0
+
+            // Persist final sale state before external delivery/payment side effects.
+            // This prevents double-buy across servers even if the buyer disconnects during delivery.
+            market.markSold(listing.id, player.uniqueId)
+
             if (hasSpaceFor(player, listing.item)) {
                 player.inventory.addItem(listing.item.clone())
             } else {
                 market.queueDelivery(player.uniqueId, listing.item.clone())
                 sendText(player, msg("market-delivery-queued"))
             }
+
             val seller = Bukkit.getPlayer(listing.seller)
             if (seller != null) {
                 if (!economy.deposit(seller, listing.price)) market.addPendingEarning(listing.seller, listing.price)
             } else {
                 market.addPendingEarning(listing.seller, listing.price)
             }
-            market.markSold(listing.id, player.uniqueId)
             publishMarketEvent("LISTING_BOUGHT", listing.id)
             sendText(player, msg("market-bought", mapOf("price" to listing.price.toString())))
         } catch (t: Throwable) {
-            market.releaseReservation(listing.id)
-            if (selected.price > 0) economy.deposit(player, selected.price)
-            logger.warning("Market purchase failed and was rolled back: ${t.message}")
+            // If final sale was not persisted, release lock and refund. If it was persisted, prefer queued-delivery/manual review over duping.
+            runCatching { market.releaseReservation(listing.id) }
+            if (charged) runCatching { economy.deposit(player, listing.price) }
+            logger.warning("Market purchase failed and was rolled back where possible: ${t.message}")
             sendText(player, msg("market-cluster-unavailable"))
         }
     }
