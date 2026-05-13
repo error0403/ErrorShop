@@ -15,6 +15,68 @@ ErrorShop QQ Group: <https://qm.qq.com/q/bG3ooHYT3q>
 If you run into issues, find bugs, or have feature suggestions, you can contact the author through QQ, the QQ group, or GitHub Issues. Bug reports and suggestions are welcome. The plugin is actively maintained and updated frequently.
 
 
+## 📌 版本更新记录 / Version History
+
+<details open>
+<summary><strong>v0.14 - 2026-05-13 20:23 CST</strong></summary>
+
+- 新增 PlayerPoints 点券支持。
+- 新增商店商品双经济价格：金币、点券、金币+点券。
+- 新增 `currency-mode: and`：两种货币都需要满足，并同时扣除。
+- 新增 `currency-mode: or`：金币或点券满足一种即可购买，优先扣金币，金币不足时尝试点券。
+- 新增配置：`points.enabled`、`points.provider`、`points.name`。
+- 新增商品字段：`points`、`currency-mode`。
+- 新增点券相关语言提示：点券插件缺失、点券不足、金币/点券都不足。
+- 已完成 Paper 1.21.1 干净环境启动验证。
+
+English:
+
+- Added PlayerPoints support.
+- Added dual-economy shop pricing: money, points, or money + points.
+- Added `currency-mode: and`: both currencies are required and charged together.
+- Added `currency-mode: or`: either money or points can be used; money is tried first, then points.
+- Added config keys: `points.enabled`, `points.provider`, `points.name`.
+- Added shop item fields: `points`, `currency-mode`.
+- Added points-related language messages.
+- Clean Paper 1.21.1 startup verified.
+
+</details>
+
+<details>
+<summary><strong>v0.13 - 2026-05-13</strong></summary>
+
+- 新增 MiniMessage 文本格式支持，同时保留传统 `&` 颜色代码兼容。
+- 更新 GitHub Wiki、README、Modrinth 与 MineBBS 发布文档。
+- 补充作者 QQ 与 ErrorShop 交流群。
+- 已完成 Paper 1.21.1 干净环境启动验证。
+
+English:
+
+- Added MiniMessage support while keeping legacy `&` color code compatibility.
+- Updated GitHub Wiki, README, Modrinth, and MineBBS release copy.
+- Added author QQ and ErrorShop QQ group link.
+- Clean Paper 1.21.1 startup verified.
+
+</details>
+
+<details>
+<summary><strong>v0.12 - 2026-05-13</strong></summary>
+
+- 重写发布页为自然的用户手册风格。
+- 扩展兼容版本到 1.20.6 与 1.21.x。
+- 补充完整配置说明、命令、权限、市场上架限制与 PAPI 状态。
+- 已完成 Paper 1.21.1 干净环境启动验证。
+
+English:
+
+- Rewrote the release pages into a natural user-guide style.
+- Expanded compatibility metadata to 1.20.6 and 1.21.x.
+- Added full config explanations, commands, permissions, listing limit notes, and PAPI status.
+- Clean Paper 1.21.1 startup verified.
+
+</details>
+
+
 ErrorShop 是一个给 Paper 服务器用的轻量商店插件。你可以用它做服务器官方商店、玩家交易市场，也可以用 YAML 写一些简单的菜单入口。
 
 ErrorShop is a lightweight shop plugin for Paper servers. You can use it for server shops, player-to-player market listings, and simple YAML-based GUI menus.
