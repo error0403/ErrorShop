@@ -1,0 +1,18 @@
+title: "&6官方商店"
+permission: "easyshop.shop.default"
+items:
+  diamond:
+    material: DIAMOND
+    name: "&b钻石"
+    lore:
+      - "&7官方示例商品"
+      - "&e左键购买 1 个"
+    buy: 100.0
+    sell: 50.0
+    amount: 1
+  apple:
+    material: APPLE
+    name: "&a苹果"
+    buy: 5.0
+    sell: 2.0
+    amount: 1

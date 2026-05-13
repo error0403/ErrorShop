@@ -1,0 +1,8 @@
+storage:
+  # yaml: zero dependency local storage; sqlite: reserved for future release
+  type: yaml
+  yaml:
+    # Relative paths are resolved under the plugin data folder.
+    file: market.yml
+  sqlite:
+    file: market.db

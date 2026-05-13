@@ -1,0 +1,15 @@
+settings:
+  default-shop: default
+  default-menu: main
+currency:
+  # none: no real money deduction/payment, for preview and testing
+  # vault: use Vault economy when Vault is installed
+  provider: none
+market:
+  tax-rate: 0.0
+  max-listings-per-player: 20
+  return-items-on-shutdown: false
+shop:
+  close-after-purchase: false
+menu:
+  allow-console-actions: true

@@ -1,0 +1,23 @@
+title: "&6EasyShop 主菜单"
+layout:
+  - "#########"
+  - "##S#M####"
+  - "#########"
+items:
+  '#':
+    material: GRAY_STAINED_GLASS_PANE
+    name: " "
+  S:
+    material: CHEST
+    name: "&a官方商店"
+    lore:
+      - "&7点击打开默认商店"
+    left:
+      - "[shop] default"
+  M:
+    material: EMERALD
+    name: "&b全球市场"
+    lore:
+      - "&7点击打开玩家市场"
+    left:
+      - "[market]"
