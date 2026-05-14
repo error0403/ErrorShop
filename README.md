@@ -1,45 +1,59 @@
 # ErrorShop - 轻量商店、玩家市场和自定义菜单
 
+## 🚀 为什么用 ErrorShop / Why ErrorShop
+
+开服最烦的不是“有没有商店插件”，而是：商店菜单要改来改去、玩家交易入口不好做、VIP/SVIP 权限市场要单独写、跨服市场又容易重复购买或数据不同步。ErrorShop 就是为这些常见痛点做的：**简单、轻量、易上手，配置文件看得懂，装上就能开始搭商店体系。**
+
+Running a server usually does not fail because there is no shop plugin — it fails because menus are annoying to maintain, player trading needs a clean entry, VIP/SVIP market permissions need extra work, and cross-server markets can easily duplicate sales or desync data. ErrorShop is built for these pain points: **simple, lightweight, easy to use, and configuration-first.**
+
+你可以用 ErrorShop 快速完成：
+
+- **自定义无限个菜单**：用 `menus/` 写多少个 GUI 菜单都可以，适合作为主菜单、商店入口、传送入口、功能导航。
+- **快速创建系统商店**：在 `shops/` 里写商品配置，就能搭建服务器官方商店，支持购买、出售、权限控制。
+- **搭建带权限判断的全球市场**：玩家可自行上架物品，服主可按权限组控制上架数量，VIP/SVIP 市场权限不用额外写插件。
+- **群组服共享市场**：需要跨服时可切到 MySQL + Redis，支持共享市场、购买锁定、离线收益和待领取队列。
+- **低成本维护**：不追求花哨大而全，优先保证轻量、清晰、可配置、好排错。
+
+With ErrorShop, you can quickly build:
+
+- **Unlimited custom menus** through `menus/` for main menus, shop entrances, teleport menus, and feature navigation.
+- **Server shops in minutes** through `shops/`, with buy/sell items and permission checks.
+- **A permission-gated global player market** where players list items and owners control listing slots by permission groups.
+- **A group-server shared market** through MySQL + Redis when you need cross-server trading, listing locks, offline earnings, and queued deliveries.
+- **Low-maintenance shop infrastructure** focused on being lightweight, readable, configurable, and easy to troubleshoot.
+
 ## 📮 作者联系 / Contact the Author
 
 作者 QQ：`1955008190`
 
 ErrorShop 交流群：<https://qm.qq.com/q/bG3ooHYT3q>
 
-如果你在使用 ErrorShop 时遇到问题、发现 Bug，或者有功能建议，可以通过 QQ、交流群或 GitHub Issues 联系作者。欢迎反馈 Bug 和改进建议，插件会持续维护，基本每天都会修复和更新。
+作者高强度冲浪在线，欢迎反馈 Bug、提建议或进群交流。插件会持续维护，基本每天都会修复和更新。最近也支持**低价定制 Minecraft 插件**，如果你的服务器需要专属功能，可以直接联系作者聊需求。
 
 Author QQ: `1955008190`
 
 ErrorShop QQ Group: <https://qm.qq.com/q/bG3ooHYT3q>
 
-If you run into issues, find bugs, or have feature suggestions, you can contact the author through QQ, the QQ group, or GitHub Issues. Bug reports and suggestions are welcome. The plugin is actively maintained and updated frequently.
-
-
-
-ErrorShop 是一个给 Paper 服务器用的轻量商店插件。你可以用它做服务器官方商店、玩家交易市场，也可以用 YAML 写一些简单的菜单入口。
-
-ErrorShop is a lightweight shop plugin for Paper servers. You can use it for server shops, player-to-player market listings, and simple YAML-based GUI menus.
+The author is frequently online and happy to receive bug reports, suggestions, and server-owner feedback. ErrorShop is actively maintained and updated often. Low-cost custom Minecraft plugin development is also available — contact the author if your server needs custom features.
 
 ## ✨ 功能特点 / Features
 
-- 🏪 官方商店：把商品写在 `shops/` 文件夹里，玩家可以打开商店购买或出售物品。  
-  Server shops: define items in the `shops/` folder so players can buy or sell items in a GUI.
-- 📈 玩家市场：玩家可以把手上的物品按指定价格上架，其他玩家可以购买。  
-  Player market: players can list the item in their hand for a price, and other players can buy it.
-- 🧩 自定义菜单：用 `menus/` 配置简单 GUI 菜单，可以作为传送、商店入口或功能导航。  
-  Custom menus: create simple YAML GUI menus for navigation, shop entrances, or server features.
-- 💬 文本可改：大部分提示都在 `lang.yml`，方便改成你服务器自己的风格。  
-  Editable messages: most messages are in `lang.yml`, so you can match your server style.
-- 🎨 MiniMessage：支持 MiniMessage，同时兼容旧的 `&` 颜色代码。  
-  MiniMessage support: modern MiniMessage formatting is supported, while legacy `&` color codes still work.
-- 💰 Vault 可选：需要真实经济时接 Vault，不接也可以先测试菜单和配置。  
-  Optional Vault economy: use Vault for real money transactions, or keep it disabled while testing menus and config.
-- 🌐 群组市场：可选 MySQL 共享玩家市场数据，并用 Redis 广播市场事件，适合生存群组、子服网络和多节点市场。  
-  Group market: optionally share player-market data through MySQL and broadcast market events through Redis, suitable for survival networks and multi-server groups.
-- 🔒 防重复购买：MySQL 模式下购买会先锁定商品，降低多服同时点击导致重复成交的风险。  
-  Double-buy protection: MySQL mode reserves a listing before purchase, reducing duplicate sales when multiple servers click at the same time.
-- 🎁 离线收益与待领取：卖家离线时收益会暂存，买家背包满时商品会进入待领取队列。  
-  Offline earnings and queued delivery: seller earnings can be stored while offline, and full-inventory purchases are queued for later delivery.
+- 🧩 **无限自定义菜单**：`menus/` 想写几个就写几个，可做主菜单、商店入口、传送入口、活动入口和功能导航。  
+  **Unlimited custom menus**: create as many `menus/` GUI files as you need for navigation, shops, teleports, events, and server features.
+- 🏪 **快速系统商店**：商品直接写进 `shops/`，不用写代码就能快速搭建官方商店，支持购买、出售和商店权限。  
+  **Fast server shops**: define items in `shops/` and build official server shops without coding, including buy/sell prices and shop permissions.
+- 📈 **权限全球市场**：玩家可自行上架物品，服主可按权限组限制上架数量，轻松做普通玩家/VIP/SVIP 差异。  
+  **Permission-gated global market**: players list items themselves, while owners control listing slots by permission groups such as default/VIP/SVIP.
+- 🌐 **群组共享市场**：可选 MySQL + Redis，让多个子服共享玩家市场，并支持购买锁定、离线收益和待领取队列。  
+  **Group shared market**: optionally use MySQL + Redis to share one player market across servers with listing locks, offline earnings, and queued deliveries.
+- 🔒 **降低重复购买风险**：MySQL 模式购买前会先锁定商品，降低多服同时点击同一商品导致重复成交的风险。  
+  **Duplicate-sale protection**: MySQL mode reserves a listing before purchase to reduce duplicate sales from simultaneous cross-server clicks.
+- 💰 **Vault / PlayerPoints 可选**：可以只用 Vault 金币，也可以给系统商店配置点券或双货币价格。  
+  **Optional Vault / PlayerPoints**: use Vault money, PlayerPoints, or dual-currency pricing for server-shop items.
+- 🎨 **MiniMessage + 旧颜色码兼容**：新服可以用 MiniMessage，老配置也不用马上重写。  
+  **MiniMessage + legacy color support**: use modern MiniMessage while keeping old `&` color-code configs working.
+- 🪶 **简单、轻量、易用**：不强迫你接一堆依赖，默认单服 YAML 就能跑，需要群组市场时再启用数据库。  
+  **Simple, lightweight, easy to use**: no heavy dependency chain by default; local YAML works out of the box, and database mode is optional.
 
 ## ✅ 支持版本 / Compatibility
 
