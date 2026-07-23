@@ -36,6 +36,10 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
     private var jedisPool: JedisPool? = null
     private var subscriber: JedisPubSub? = null
     private val gson = Gson()
+    private val pendingMarketCancellations = mutableMapOf<UUID, PendingMarketCancellation>()
+    private val defaultLang: YamlConfiguration by lazy {
+        getTextResource("lang.yml")?.use { YamlConfiguration.loadConfiguration(it) } ?: YamlConfiguration()
+    }
 
     override fun enable() {
         saveDefaultConfig()
@@ -189,7 +193,7 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
         when (args[0].lowercase()) {
             "reload" -> { if (!sender.hasPermission("errorshop.reload")) return deny(sender); reloadAll(); sendText(sender, msg("reloaded")); return true }
             "shop" -> { val p = sender as? Player ?: return playerOnly(sender); openShop(p, args.getOrNull(1) ?: (config.getString("settings.default-shop") ?: "default")); return true }
-            "market" -> { val p = sender as? Player ?: return playerOnly(sender); if (!p.hasPermission("errorshop.market.buy")) return deny(p); openMarket(p); return true }
+            "market" -> { val p = sender as? Player ?: return playerOnly(sender); if (!p.hasPermission("errorshop.market.buy") && !p.hasPermission("errorshop.market.cancel")) return deny(p); openMarket(p); return true }
             "sell" -> { sellToMarket(sender, args); return true }
             "menu" -> { val p = sender as? Player ?: return playerOnly(sender); openMenu(p, args.getOrNull(1) ?: (config.getString("settings.default-menu") ?: "main")); return true }
             else -> sendText(sender, msg("unknown-command"))
@@ -213,10 +217,16 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
         if (item.type.isAir) { sendText(p, msg("empty-hand")); return }
         val limit = marketLimit(p)
         if (market.countBySeller(p.uniqueId) >= limit) { sendText(p, msg("listing-limit")); return }
-        val listingId = market.add(p.uniqueId, p.name, item.clone(), price)
+        val listedItem = item.clone()
+        val listingId = market.add(p.uniqueId, p.name, listedItem, price)
         publishMarketEvent("LISTING_CREATED", listingId)
         item.amount = 0
-        sendText(p, msg("sell-success", mapOf("price" to price.toString())))
+        sendText(p, msg("sell-success", mapOf(
+            "item" to itemName(listedItem),
+            "amount" to listedItem.amount.toString(),
+            "price" to price.toString(),
+            "id" to (listingId ?: "")
+        )))
     }
 
     private fun openShop(player: Player, id: String) {
@@ -228,11 +238,11 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
     }
 
     private fun openMarket(player: Player) {
-        val listings = market.listings()
+        val listings = market.listings().take(45)
         val inv = Bukkit.createInventory(null, 54, color("&b全球市场"))
         if (listings.isEmpty()) sendText(player, msg("market-empty"))
-        listings.take(45).forEachIndexed { idx, listing -> inv.setItem(idx, listing.icon()) }
-        player.openInventory(inv); openSessions[player.uniqueId] = OpenSession.Market
+        listings.forEachIndexed { idx, listing -> inv.setItem(idx, listing.icon(player.uniqueId)) }
+        player.openInventory(inv); openSessions[player.uniqueId] = OpenSession.Market(listings.map { it.id })
     }
 
     private fun openMenu(player: Player, id: String) {
@@ -255,13 +265,14 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
         if (event.view.topInventory != event.clickedInventory) return
         when (session) {
             is OpenSession.Shop -> handleShopClick(player, session.id, event.currentItem ?: return)
-            OpenSession.Market -> handleMarketClick(player, event.slot)
+            is OpenSession.Market -> handleMarketClick(player, session, event.slot, event.click.isRightClick)
             is OpenSession.Menu -> handleMenuClick(player, session.id, event.slot, event.click.isRightClick)
         }
     }
 
     @EventHandler fun onClose(event: InventoryCloseEvent) {
         openSessions.remove(event.player.uniqueId)
+        pendingMarketCancellations.remove(event.player.uniqueId)
     }
 
     @EventHandler fun onJoin(event: PlayerJoinEvent) {
@@ -282,9 +293,21 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
         sendText(player, msg("buy-success", mapOf("item" to match.material.name, "amount" to match.amount.toString(), "price" to match.buy.toString(), "points" to match.points.toString())))
     }
 
-    private fun handleMarketClick(player: Player, slot: Int) {
-        val selected = market.listings().getOrNull(slot) ?: return
-        if (selected.seller == player.uniqueId) { sendText(player, msg("market-own-item")); return }
+    private fun handleMarketClick(player: Player, session: OpenSession.Market, slot: Int, rightClick: Boolean) {
+        val listingId = session.listingIds.getOrNull(slot) ?: return
+        val selected = market.listings().firstOrNull { it.id == listingId } ?: run {
+            sendText(player, msg("market-item-sold"))
+            return
+        }
+        if (selected.seller == player.uniqueId) {
+            if (!player.hasPermission("errorshop.market.cancel")) { deny(player); return }
+            if (!rightClick) { sendText(player, msg("market-own-item")); return }
+            confirmMarketCancellation(player, selected)
+            return
+        }
+        pendingMarketCancellations.remove(player.uniqueId)
+        if (rightClick) return
+        if (!player.hasPermission("errorshop.market.buy")) { deny(player); return }
         if (!economy.available()) { sendText(player, msg("vault-missing")); return }
         val listing = market.reserve(selected.id, player.uniqueId)
         if (listing == null) {
@@ -304,19 +327,28 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
             // This prevents double-buy across servers even if the buyer disconnects during delivery.
             market.markSold(listing.id, player.uniqueId)
 
+            val variables = mapOf(
+                "item" to itemName(listing.item),
+                "amount" to listing.item.amount.toString(),
+                "seller" to listing.sellerName,
+                "buyer" to player.name,
+                "price" to listing.price.toString()
+            )
             if (hasSpaceFor(player, listing.item)) {
                 player.inventory.addItem(listing.item.clone())
             } else {
                 market.queueDelivery(player.uniqueId, listing.item.clone())
-                sendText(player, msg("market-delivery-queued"))
+                sendText(player, msg("market-delivery-queued", variables))
             }
 
             val seller = Bukkit.getOfflinePlayer(listing.seller)
-            if (!economy.deposit(seller, listing.price, listing.sellerName)) {
-                market.addPendingEarning(listing.seller, listing.price)
+            val deposited = economy.deposit(seller, listing.price, listing.sellerName)
+            if (!deposited) market.addPendingEarning(listing.seller, listing.price)
+            seller.player?.let { onlineSeller ->
+                sendText(onlineSeller, msg(if (deposited) "market-sold" else "market-earning-pending", variables))
             }
             publishMarketEvent("LISTING_BOUGHT", listing.id)
-            sendText(player, msg("market-bought", mapOf("price" to listing.price.toString())))
+            sendText(player, msg("market-bought", variables))
         } catch (t: Throwable) {
             // If final sale was not persisted, release lock and refund. If it was persisted, prefer queued-delivery/manual review over duping.
             runCatching { market.releaseReservation(listing.id) }
@@ -324,6 +356,45 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
             logger.warning("Market purchase failed and was rolled back where possible: ${t.message}")
             sendText(player, msg("market-cluster-unavailable"))
         }
+    }
+
+    private fun confirmMarketCancellation(player: Player, listing: MarketListing) {
+        val now = System.currentTimeMillis()
+        val pending = pendingMarketCancellations[player.uniqueId]
+        if (pending == null || pending.listingId != listing.id || pending.expiresAt < now) {
+            pendingMarketCancellations[player.uniqueId] = PendingMarketCancellation(listing.id, now + 5_000)
+            sendText(player, msg("market-cancel-confirm", mapOf(
+                "item" to itemName(listing.item),
+                "amount" to listing.item.amount.toString(),
+                "price" to listing.price.toString(),
+                "seconds" to "5"
+            )))
+            return
+        }
+        pendingMarketCancellations.remove(player.uniqueId)
+        cancelMarketListing(player, listing.id)
+    }
+
+    private fun cancelMarketListing(player: Player, listingId: String) {
+        val result = runCatching { market.cancelAndQueueDelivery(listingId, player.uniqueId) }
+        result.exceptionOrNull()?.let { error ->
+            logger.warning("Market listing cancellation failed for $listingId: ${error.message}")
+            sendText(player, msg("market-cluster-unavailable"))
+            return
+        }
+        val listing = result.getOrNull() ?: run {
+            sendText(player, msg("market-item-sold"))
+            return
+        }
+        publishMarketEvent("LISTING_REMOVED", listing.id)
+        player.closeInventory()
+        runCatching { claimQueuedDeliveries(player, notify = false) }
+            .onFailure { logger.warning("Cancelled listing ${listing.id} remains queued for delivery: ${it.message}") }
+        sendText(player, msg("market-cancelled", mapOf(
+            "item" to itemName(listing.item),
+            "amount" to listing.item.amount.toString(),
+            "price" to listing.price.toString()
+        )))
     }
 
     private fun chargeShopItem(player: Player, item: ShopItem): String? {
@@ -357,14 +428,17 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
         return remaining <= 0
     }
 
-    private fun claimQueuedDeliveries(player: Player) {
+    private fun itemName(item: ItemStack): String = item.type.name.lowercase().replace('_', ' ')
+
+    private fun claimQueuedDeliveries(player: Player, notify: Boolean = true) {
         val items = market.takeDeliveries(player.uniqueId)
         if (items.isEmpty()) return
         var queuedAgain = 0
         items.forEach { item ->
             if (hasSpaceFor(player, item)) player.inventory.addItem(item.clone()) else { market.queueDelivery(player.uniqueId, item); queuedAgain++ }
         }
-        if (queuedAgain < items.size) sendText(player, msg("market-delivery-claimed"))
+        val delivered = items.size - queuedAgain
+        if (notify && delivered > 0) sendText(player, msg("market-delivery-claimed", mapOf("count" to delivered.toString())))
     }
 
     private fun payPendingEarnings(player: Player) {
@@ -382,7 +456,7 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
         if (player.openInventory.topInventory != inventory) return false
         val expectedTitle = when (session) {
             is OpenSession.Shop -> shops[session.id]?.title ?: return false
-            OpenSession.Market -> "&b全球市场"
+            is OpenSession.Market -> "&b全球市场"
             is OpenSession.Menu -> menus[session.id]?.title ?: return false
         }
         return player.openInventory.title == color(expectedTitle)
@@ -413,8 +487,8 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
     private fun deny(sender: CommandSender): Boolean { sendText(sender, msg("no-permission")); return true }
     private fun msg(key: String, vars: Map<String, String> = emptyMap()): String {
         val lang = YamlConfiguration.loadConfiguration(File(dataFolder, "lang.yml"))
-        var text = lang.getString(key) ?: key
-        val prefix = lang.getString("prefix") ?: ""
+        var text = lang.getString(key) ?: defaultLang.getString(key) ?: key
+        val prefix = lang.getString("prefix") ?: defaultLang.getString("prefix") ?: ""
         vars.forEach { (k, v) -> text = text.replace("{$k}", v).replace("%$k%", v) }
         return prefix + text
     }
@@ -433,4 +507,10 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
     companion object { val openSessions = mutableMapOf<UUID, OpenSession>() }
 }
 
-sealed class OpenSession { data class Shop(val id: String): OpenSession(); object Market: OpenSession(); data class Menu(val id: String): OpenSession() }
+data class PendingMarketCancellation(val listingId: String, val expiresAt: Long)
+
+sealed class OpenSession {
+    data class Shop(val id: String): OpenSession()
+    data class Market(val listingIds: List<String>): OpenSession()
+    data class Menu(val id: String): OpenSession()
+}

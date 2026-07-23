@@ -1,6 +1,6 @@
 name: ErrorShop
 main: com.pixelserver.errorshop.ErrorShopPlugin
-version: 0.16.1
+version: 0.17
 authors: [PixelServer]
 api-version: '1.21'
 folia-supported: true
@@ -16,6 +16,8 @@ permissions:
   errorshop.market.sell:
     default: true
   errorshop.market.buy:
+    default: true
+  errorshop.market.cancel:
     default: true
   errorshop.shop.default:
     default: true

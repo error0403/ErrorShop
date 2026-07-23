@@ -1,5 +1,7 @@
 # ErrorShop - 轻量商店、玩家市场和自定义菜单
 
+[![Build](https://github.com/error0403/ErrorShop/actions/workflows/build.yml/badge.svg)](https://github.com/error0403/ErrorShop/actions/workflows/build.yml)
+
 ## 🚀 为什么用 ErrorShop / Why ErrorShop
 
 开服最烦的不是“有没有商店插件”，而是：商店菜单要改来改去、玩家交易入口不好做、VIP/SVIP 权限市场要单独写、跨服市场又容易重复购买或数据不同步。ErrorShop 就是为这些常见痛点做的：**简单、轻量、易上手，配置文件看得懂，装上就能开始搭商店体系。**
@@ -105,6 +107,7 @@ Note: the current build has been startup-tested on a clean Paper 1.21.1 server. 
 | `errorshop.menu.<id>` | 允许打开指定菜单，例如 `errorshop.menu.main` / Allows opening a specific menu |
 | `errorshop.market.sell` | 允许上架玩家市场商品 / Allows listing items on the player market |
 | `errorshop.market.buy` | 允许打开市场并购买商品 / Allows opening the market and buying items |
+| `errorshop.market.cancel` | 允许下架自己发布的市场商品 / Allows cancelling your own market listings |
 
 ## 🧷 config.yml 怎么配置 / How to configure config.yml
 
@@ -519,9 +522,9 @@ Other players can run:
 /errorshop market
 ```
 
-打开市场后点击商品即可购买。
+打开市场后，买家左键商品即可购买；卖家对自己的商品右键两次可确认下架。
 
-They can open the market and click a listing to buy it.
+Buyers can left-click a listing to purchase it. Sellers can right-click their own listing twice to confirm cancellation.
 
 注意：
 
@@ -529,7 +532,7 @@ Notes:
 
 - 玩家需要 `errorshop.market.sell` 才能上架。 / Players need `errorshop.market.sell` to list items.
 - 玩家需要 `errorshop.market.buy` 才能打开市场购买。 / Players need `errorshop.market.buy` to browse and buy.
-- 玩家不能购买自己上架的商品。 / Players cannot buy their own listings.
+- 玩家不能购买自己的商品，但可右键两次安全下架并取回物品。 / Players cannot buy their own listings, but can right-click twice to safely cancel and reclaim them.
 - 每个玩家上架数量受 `market.max-listings-per-player` 控制。 / Listing count is controlled by `market.max-listings-per-player`.
 
 
@@ -692,6 +695,25 @@ ErrorShop 0.14 does not currently provide confirmed custom `%errorshop_*%` place
 ## 📌 版本更新记录 / Version History
 
 <details open>
+<summary><strong>v0.17 - 2026-07-23 CST</strong></summary>
+
+- 新增市场商品右键两次确认下架，物品会安全返还或进入待领取队列。
+- 本地 YAML 与 MySQL 后端均增加归属校验；MySQL 下架、状态更新和返还入队在同一事务完成。
+- 修复市场界面列表变化时可能点击到其他商品的问题，购买和下架均按界面快照中的商品 ID 处理。
+- 优化中文交易通知，新增买卖双方、待入账、下架确认和待领取数量提示。
+- 新增 GitHub Actions Java 21 云端构建和 JAR artifact。
+
+English:
+
+- Added double-right-click confirmation for cancelling listings, with safe inventory or delivery-queue returns.
+- Added ownership checks to both backends; MySQL cancellation, status update, and queued return run in one transaction.
+- Fixed stale market slots by resolving purchases and cancellations from listing IDs captured when the menu opens.
+- Improved Chinese transaction notifications for buyers, sellers, pending earnings, cancellation, and deliveries.
+- Added Java 21 GitHub Actions builds with downloadable JAR artifacts.
+
+</details>
+
+<details>
 <summary><strong>v0.16.1 - 2026-07-23 CST</strong></summary>
 
 - 修复市场购买后离线卖家或其他子服卖家未直接收到金币的问题。

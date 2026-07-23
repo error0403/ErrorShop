@@ -54,14 +54,14 @@ data class MarketEvent(
 )
 
 data class MarketListing(val id: String, val seller: UUID, val sellerName: String, val item: ItemStack, val price: Double) {
-    fun icon(): ItemStack {
+    fun icon(viewer: UUID): ItemStack {
         val copy = item.clone()
         val meta = copy.itemMeta
         if (meta != null) {
             val lore = (meta.lore ?: emptyList()).toMutableList()
             lore += colorText("&7卖家: &f$sellerName")
             lore += colorText("&e价格: $price")
-            lore += colorText("&a点击购买")
+            lore += colorText(if (seller == viewer) "&c右键两次下架" else "&a左键购买")
             meta.lore = lore
             copy.itemMeta = meta
         }
@@ -77,7 +77,7 @@ interface MarketBackend {
     fun listings(): List<MarketListing>
     fun countBySeller(seller: UUID): Int
     fun add(seller: UUID, sellerName: String, item: ItemStack, price: Double): String?
-    fun remove(id: String)
+    fun cancelAndQueueDelivery(id: String, seller: UUID): MarketListing?
     fun reserve(id: String, buyer: UUID): MarketListing?
     fun markSold(id: String, buyer: UUID)
     fun releaseReservation(id: String)
@@ -124,7 +124,21 @@ class MarketStore : MarketBackend {
     override fun listings(): List<MarketListing> = listings.values.toList()
     override fun countBySeller(seller: UUID): Int = listings.values.count { it.seller == seller }
     override fun add(seller: UUID, sellerName: String, item: ItemStack, price: Double): String { val id = System.currentTimeMillis().toString(36) + "-" + seller.toString().take(8); listings[id] = MarketListing(id, seller, sellerName, item, price); save(); return id }
-    override fun remove(id: String) { listings.remove(id); save() }
+    override fun cancelAndQueueDelivery(id: String, seller: UUID): MarketListing? {
+        val listing = listings[id]?.takeIf { it.seller == seller } ?: return null
+        listings.remove(id)
+        val queuedItems = deliveries.getOrPut(seller) { mutableListOf() }
+        queuedItems.add(listing.item.clone())
+        return try {
+            save()
+            listing
+        } catch (t: Throwable) {
+            queuedItems.removeAt(queuedItems.lastIndex)
+            if (queuedItems.isEmpty()) deliveries.remove(seller)
+            listings[id] = listing
+            throw t
+        }
+    }
     override fun reserve(id: String, buyer: UUID): MarketListing? = listings[id]
     override fun markSold(id: String, buyer: UUID) { listings.remove(id); save() }
     override fun releaseReservation(id: String) { save() }
@@ -231,7 +245,37 @@ class MysqlMarketBackend(private val settings: MysqlSettings) : MarketBackend {
         return id
     }
 
-    override fun remove(id: String) { connection().use { c -> c.prepareStatement("UPDATE $listingsTable SET status='REMOVED',updated_at=? WHERE id=? AND status IN ('ACTIVE','LOCKED')").use { ps -> ps.setLong(1, System.currentTimeMillis()); ps.setString(2, id); ps.executeUpdate() } } }
+    override fun cancelAndQueueDelivery(id: String, seller: UUID): MarketListing? = connection().use { c ->
+        c.autoCommit = false
+        try {
+            val listing = c.prepareStatement("SELECT id,seller_uuid,seller_name,item_blob,price FROM $listingsTable WHERE id=? AND seller_uuid=? AND status='ACTIVE' FOR UPDATE").use { ps ->
+                ps.setString(1, id)
+                ps.setString(2, seller.toString())
+                ps.executeQuery().use { rs -> if (rs.next()) toListing(rs) else null }
+            }
+            if (listing == null) { c.rollback(); return@use null }
+            val updated = c.prepareStatement("UPDATE $listingsTable SET status='REMOVED',buyer_uuid=NULL,locked_at=NULL,updated_at=? WHERE id=? AND seller_uuid=? AND status='ACTIVE'").use { ps ->
+                ps.setLong(1, System.currentTimeMillis())
+                ps.setString(2, id)
+                ps.setString(3, seller.toString())
+                ps.executeUpdate()
+            }
+            if (updated != 1) { c.rollback(); return@use null }
+            c.prepareStatement("INSERT INTO $deliveriesTable(buyer_uuid,item_blob,created_at) VALUES(?,?,?)").use { ps ->
+                ps.setString(1, seller.toString())
+                ps.setString(2, serializeItem(listing.item))
+                ps.setLong(3, System.currentTimeMillis())
+                ps.executeUpdate()
+            }
+            c.commit()
+            listing
+        } catch (t: Throwable) {
+            c.rollback()
+            throw t
+        } finally {
+            c.autoCommit = true
+        }
+    }
 
     override fun reserve(id: String, buyer: UUID): MarketListing? = connection().use { c ->
         c.autoCommit = FalseCompat.FALSE
