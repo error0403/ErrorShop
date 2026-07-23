@@ -60,7 +60,7 @@ The author is frequently online and happy to receive bug reports, suggestions, a
 - Minecraft Java Edition
 - Paper / compatible Paper forks
 - Recommended Java: 21
-- Target versions: `1.20.6`, `1.21`, `1.21.1`, `1.21.2`, `1.21.3`, `1.21.4`, `1.21.5`, `1.21.6`, `1.21.7`, `1.21.8`
+- Target versions: `1.20.6`, `1.21`, `1.21.1`, `1.21.2`, `1.21.3`, `1.21.4`, `1.21.5`, `1.21.6`, `1.21.7`, `1.21.8`, `1.21.9`, `1.21.10`, `1.21.11`
 
 说明：当前构建已在干净 Paper 1.21.1 环境启动验证。其它 1.20.6/1.21.x 版本按 Paper API 兼容范围标注，正式服使用前建议先在测试服加载一次。
 
@@ -287,8 +287,8 @@ When Vault is enabled:
 
 - 玩家购买官方商店物品会扣钱。 / Buying from server shops costs money.
 - 玩家购买市场商品会扣买家的钱。 / Buying market listings costs the buyer money.
-- 卖家在线时会直接收到钱。 / Online sellers receive money directly.
-- 卖家不在线时，收益会先记录下来，等玩家上线后尝试发放。 / Offline seller earnings are saved and paid when the seller comes online.
+- 插件会直接尝试向卖家账户入账，包括经济插件支持的离线账户。 / The plugin attempts to credit the seller account directly, including offline accounts supported by the economy provider.
+- 如果经济插件暂时拒绝入账，收益会安全记录下来，并在卖家上线时重试。 / If the economy provider temporarily rejects the deposit, the earnings are saved and retried when the seller joins.
 
 ## 🗄️ database.yml 怎么配置 / How to configure database.yml
 
@@ -691,8 +691,22 @@ ErrorShop 0.14 does not currently provide confirmed custom `%errorshop_*%` place
 
 ## 📌 版本更新记录 / Version History
 
-
 <details open>
+<summary><strong>v0.16.1 - 2026-07-23 CST</strong></summary>
+
+- 修复市场购买后离线卖家或其他子服卖家未直接收到金币的问题。
+- 修复 Vault 反射调用可能误选字符串重载、导致入账静默失败的问题。
+- 使用 Paper 1.21.11 API 编译，并确认入账路径兼容 XConomy 的 Vault `OfflinePlayer` 接口。
+
+English:
+
+- Fixed market purchases not directly crediting sellers who are offline or on another server.
+- Fixed Vault reflection selecting an incompatible string overload and silently failing deposits.
+- Compiled against the Paper 1.21.11 API and verified the payout path against XConomy's Vault `OfflinePlayer` API.
+
+</details>
+
+<details>
 <summary><strong>v0.16 - 2026-05-14 CST</strong></summary>
 
 - 新增 MySQL 玩家市场后端，用于群组服共享玩家市场。

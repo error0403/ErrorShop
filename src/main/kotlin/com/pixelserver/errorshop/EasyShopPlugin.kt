@@ -311,10 +311,8 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
                 sendText(player, msg("market-delivery-queued"))
             }
 
-            val seller = Bukkit.getPlayer(listing.seller)
-            if (seller != null) {
-                if (!economy.deposit(seller, listing.price)) market.addPendingEarning(listing.seller, listing.price)
-            } else {
+            val seller = Bukkit.getOfflinePlayer(listing.seller)
+            if (!economy.deposit(seller, listing.price, listing.sellerName)) {
                 market.addPendingEarning(listing.seller, listing.price)
             }
             publishMarketEvent("LISTING_BOUGHT", listing.id)

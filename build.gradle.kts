@@ -11,7 +11,8 @@ plugins {
 }
 
 group = "com.pixelserver.errorshop"
-version = "0.16"
+version = "0.16.1"
+val hangarResourcePage = file("../drafts/ErrorShop-Canonical-Release-Wiki.md").takeIf { it.isFile } ?: file("README.md")
 
 easylib {
     env {
@@ -26,6 +27,7 @@ easylib {
 repositories {
     mavenLocal()
     mavenCentral()
+    maven("https://repo.papermc.io/repository/maven-public/")
     maven("https://repo.codemc.io/repository/maven-releases/")
     maven("https://repo.codemc.io/repository/maven-snapshots/")
     maven("https://repo.momirealms.net/releases/")
@@ -41,7 +43,7 @@ dependencies {
     implementation(kotlin("stdlib-jdk8"))
     implementation("net.kyori:adventure-text-minimessage:4.17.0")
     implementation("net.kyori:adventure-text-serializer-legacy:4.17.0")
-    compileOnly("io.papermc.paper:paper-api:1.21.4-R0.1-SNAPSHOT")
+    compileOnly("io.papermc.paper:paper-api:1.21.11-R0.1-SNAPSHOT")
 
 //    compileOnly("org.spigotmc:spigot-api:1.18.2-R0.1-SNAPSHOT")
 }
@@ -82,13 +84,14 @@ hangarPublish {
         channel.set("Release")
         id.set("ErrorShop")
         apiKey.set(System.getenv("HANGAR_API_TOKEN"))
-        pages.resourcePage(file("../drafts/ErrorShop-Canonical-Release-Wiki.md").readText())
+        pages.resourcePage(hangarResourcePage.readText())
         platforms {
             register(Platforms.PAPER) {
                 jar.set(tasks.shadowJar.flatMap { it.archiveFile })
                 platformVersions.set(listOf(
                     "1.20.6", "1.21", "1.21.1", "1.21.2", "1.21.3",
-                    "1.21.4", "1.21.5", "1.21.6", "1.21.7", "1.21.8"
+                    "1.21.4", "1.21.5", "1.21.6", "1.21.7", "1.21.8",
+                    "1.21.9", "1.21.10", "1.21.11"
                 ))
                 dependencies {
                     url("Vault", "https://www.spigotmc.org/resources/vault.34315/") {
