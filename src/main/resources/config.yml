@@ -9,6 +9,14 @@ market:
   backend: "local" # local / mysql
   cache-seconds: 5
   fail-policy: "disable-market" # disable-market / local-readonly
+  # Listing prices must stay in this range and may use at most price-decimals decimal places.
+  min-price: 0.01
+  max-price: 1000000000
+  price-decimals: 2
+  # 0.05 means a 5% fee. The seller receives price * (1 - tax-rate).
+  tax-rate: 0.0
+  # MySQL reservations older than this are released automatically after an interrupted purchase.
+  reservation-timeout-seconds: 60
   # Permission-based listing limits. If a player matches multiple groups, the largest slots value is used.
   groups:
     default:
@@ -19,12 +27,12 @@ market:
     svip:
       permission: "errorshop.market.svip"
       slots: 27
-  tax-rate: 0.0
   max-listings-per-player: 20
   return-items-on-shutdown: false
 shop:
   close-after-purchase: false
 menu:
+  # When false, [console] actions in menus are blocked.
   allow-console-actions: true
 
 points:

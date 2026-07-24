@@ -50,6 +50,12 @@ The author is frequently online and happy to receive bug reports, suggestions, a
   **Group shared market**: optionally use MySQL + Redis to share one player market across servers with listing locks, offline earnings, and queued deliveries.
 - 🔒 **降低重复购买风险**：MySQL 模式购买前会先锁定商品，降低多服同时点击同一商品导致重复成交的风险。  
   **Duplicate-sale protection**: MySQL mode reserves a listing before purchase to reduce duplicate sales from simultaneous cross-server clicks.
+- 🧾 **可恢复成交事务**：成交状态、买家待发物品和卖家待结算收益在一次持久化事务中完成；异常退出留下的 MySQL 锁会自动回收。
+  **Recoverable sale transactions**: sale state, buyer delivery, and seller earnings commit together, while stale MySQL reservations are released automatically.
+- 🔎 **分页与搜索**：市场每页显示 45 件商品，可使用 `/errorshop market <关键词>` 搜索材质、显示名或卖家。
+  **Pagination and search**: browse 45 listings per page and search material, display name, or seller with `/errorshop market <query>`.
+- ⚡ **异步市场存储**：MySQL 和市场 YAML 的读取、保存、上架、购买、下架与领取均不阻塞 Paper 主线程。
+  **Async market storage**: MySQL and market YAML reads, writes, listings, purchases, cancellations, and claims do not block Paper's main thread.
 - 💰 **Vault / PlayerPoints 可选**：可以只用 Vault 金币，也可以给系统商店配置点券或双货币价格。  
   **Optional Vault / PlayerPoints**: use Vault money, PlayerPoints, or dual-currency pricing for server-shop items.
 - 🎨 **MiniMessage + 旧颜色码兼容**：新服可以用 MiniMessage，老配置也不用马上重写。  
@@ -62,11 +68,15 @@ The author is frequently online and happy to receive bug reports, suggestions, a
 - Minecraft Java Edition
 - Paper / compatible Paper forks
 - Recommended Java: 21
-- Target versions: `1.20.6`, `1.21`, `1.21.1`, `1.21.2`, `1.21.3`, `1.21.4`, `1.21.5`, `1.21.6`, `1.21.7`, `1.21.8`, `1.21.9`, `1.21.10`, `1.21.11`
+- Compile target: Paper `1.21.11` (`1.21.x` compatible Paper forks)
 
-说明：当前构建已在干净 Paper 1.21.1 环境启动验证。其它 1.20.6/1.21.x 版本按 Paper API 兼容范围标注，正式服使用前建议先在测试服加载一次。
+说明：0.18 使用 Java 21 和 Paper 1.21.11 API 编译。正式服升级前仍建议先备份 `plugins/ErrorShop/` 并在测试服完成一次购买、下架和离线卖家入账测试。
 
-Note: the current build has been startup-tested on a clean Paper 1.21.1 server. Other 1.20.6/1.21.x versions are listed based on Paper API compatibility; please test once on a staging server before using it on a production server.
+已完成干净启动验证：Paper `1.21.11-132`、Vault `1.7.3-b131`、XConomy Paper `2.26.3`。日志确认 ErrorShop 连接到 XConomy 的 Vault `OfflinePlayer` 经济实现。
+
+Note: 0.18 is compiled with Java 21 against the Paper 1.21.11 API. Back up `plugins/ErrorShop/` and test buying, cancellation, and offline seller payouts on staging before upgrading production.
+
+Clean startup was verified with Paper `1.21.11-132`, Vault `1.7.3-b131`, and XConomy Paper `2.26.3`; ErrorShop connected to XConomy's Vault `OfflinePlayer` economy implementation.
 
 ## 🚀 快速开始 / Quick Start
 
@@ -94,7 +104,7 @@ Note: the current build has been startup-tested on a clean Paper 1.21.1 server. 
 | --- | --- |
 | `/errorshop reload` | 重载配置 / Reload configuration |
 | `/errorshop shop <id>` | 打开指定官方商店 / Open a server shop |
-| `/errorshop market` | 打开玩家市场 / Open the player market |
+| `/errorshop market [关键词]` | 打开或搜索分页玩家市场 / Open or search the paged player market |
 | `/errorshop sell <price>` | 把手上的物品按指定价格上架 / List the item in your hand for sale |
 | `/errorshop menu <id>` | 打开指定自定义菜单 / Open a custom menu |
 
@@ -122,6 +132,11 @@ settings:
 
 market:
   backend: local # local / mysql
+  min-price: 0.01
+  max-price: 1000000000
+  price-decimals: 2
+  tax-rate: 0.0
+  reservation-timeout-seconds: 60
   max-listings-per-player: 20
   groups:
     default:
@@ -219,7 +234,21 @@ database:
 
 MySQL 模式会把上架商品、商品状态、离线卖家收益和买家待领取商品写入数据库。购买时会先把商品从 `ACTIVE` 锁定为 `LOCKED`，只有一个服务器能锁定成功，用来降低跨服重复购买风险。
 
-MySQL mode stores listings, listing status, pending seller earnings, and queued buyer deliveries in the database. A purchase first reserves the listing by moving it from `ACTIVE` to `LOCKED`, so only one server can proceed and duplicate cross-server purchases are reduced.
+MySQL mode stores listings, listing status, pending seller earnings, and queued buyer deliveries in the database. A purchase first reserves the listing by moving it from `ACTIVE` to `LOCKED`, then commits the sold state, buyer delivery, and seller earnings in one database transaction. Locks older than `market.reservation-timeout-seconds` are recovered automatically.
+
+### 市场价格与税率 / Market prices and tax
+
+```yaml
+market:
+  min-price: 0.01
+  max-price: 1000000000
+  price-decimals: 2
+  tax-rate: 0.05
+```
+
+`min-price`、`max-price` 和 `price-decimals` 会拒绝 `Infinity`、超大金额及小数位过多的价格；旧数据中不合规的商品仍可由卖家下架，但买家无法购买。`tax-rate: 0.05` 表示收取 5% 市场税，卖家实收金额会在上架和售出通知中明确显示。
+
+`min-price`, `max-price`, and `price-decimals` reject `Infinity`, oversized values, and excessive decimal places. Invalid legacy listings remain cancellable by their owners but cannot be purchased. `tax-rate: 0.05` charges 5%, and notifications show the seller's net earnings.
 
 ### `market.groups`
 
@@ -278,6 +307,10 @@ currency:
 `vault` 表示使用 Vault 经济。你需要同时安装 Vault 和一个 Vault 兼容经济插件，例如 EssentialsX Economy。
 
 `vault` means ErrorShop will use Vault economy. You also need Vault and a Vault-compatible economy plugin, such as EssentialsX Economy.
+
+Paper 1.21.11 + Vault + XConomy 使用 UUID/`OfflinePlayer` 接口入账，卖家不在线或位于其它子服时也会尝试直接到账；失败时收益进入持久化待结算队列。
+
+On Paper 1.21.11, Vault + XConomy payouts use the UUID/`OfflinePlayer` API. ErrorShop also declares XConomy as a soft dependency so its economy service initializes first. Offline or cross-server sellers are credited directly when possible, with persistent pending earnings as fallback.
 
 ```yaml
 currency:
@@ -499,6 +532,12 @@ Menu actions:
 | `[market]` | 打开玩家市场 / Open the player market |
 | `[menu] <id>` | 打开另一个菜单 / Open another menu |
 | `[tell] <message>` | 给玩家发送一条消息 / Send a message to the player |
+| `[player] <command>` | 以玩家身份执行命令 / Run a command as the player |
+| `[console] <command>` | 以控制台执行命令（受配置控制）/ Run as console when enabled |
+
+`menu.allow-console-actions: false` 会阻止所有 `[console]` 动作；设为 `true` 才允许菜单以控制台权限执行命令。
+
+Set `menu.allow-console-actions: false` to block every `[console]` action. Console-privileged menu commands run only when this option is enabled.
 
 ## 📈 玩家市场怎么用 / How to use the player market
 
@@ -520,11 +559,12 @@ Other players can run:
 
 ```text
 /errorshop market
+/errorshop market 钻石
 ```
 
-打开市场后，买家左键商品即可购买；卖家对自己的商品右键两次可确认下架。
+市场每页显示 45 件商品，底部箭头翻页。关键词会匹配商品材质、显示名和卖家名，并在翻页时保留。买家左键商品即可购买；卖家对自己的商品右键两次可确认下架。
 
-Buyers can left-click a listing to purchase it. Sellers can right-click their own listing twice to confirm cancellation.
+The market shows 45 listings per page with navigation arrows. Searches match material, display name, and seller and remain active across pages. Buyers left-click to purchase; sellers right-click their own listing twice to cancel it.
 
 注意：
 
@@ -644,6 +684,10 @@ settings:
 
 market:
   backend: local
+  min-price: 0.01
+  max-price: 1000000000
+  price-decimals: 2
+  tax-rate: 0.0
   max-listings-per-player: 20
 
 currency:
@@ -658,6 +702,8 @@ cluster:
 - `market.backend`: use `local` for single-server YAML storage, or `mysql` for group-market storage.
 - `market.max-listings-per-player`: maximum active market listings per player.
 - `market.groups`: permission-based listing limits.
+- `market.min-price`, `market.max-price`, and `market.price-decimals`: listing price validation.
+- `market.tax-rate`: seller fee from `0` to `1` (`0.05` = 5%).
 - `cluster.enabled`: enable group-server market mode.
 - `cluster.redis`: optional Redis event bus for market notifications.
 - `currency.provider`: use `none` for preview/testing, or `vault` to use Vault economy.
@@ -677,6 +723,7 @@ This file stores player market listings and pending seller earnings.
 ```text
 /errorshop sell 100
 /errorshop market
+/errorshop market diamond
 ```
 
 Players need:
@@ -695,6 +742,27 @@ ErrorShop 0.14 does not currently provide confirmed custom `%errorshop_*%` place
 ## 📌 版本更新记录 / Version History
 
 <details open>
+<summary><strong>v0.18 - 2026-07-24 CST</strong></summary>
+
+- 重构购买流程：锁定后扣款，成交状态、买家待发物品与卖家税后收益原子提交；仅在成交未提交时退款。
+- 所有市场 MySQL/YAML I/O 移至异步上下文，Vault、背包和 GUI 操作保持在 Paper 同步上下文。
+- 新增价格上下限、小数位校验，拒绝 `Infinity`、超大价格和不合规旧商品。
+- 新增 45 格分页与 `/errorshop market <关键词>` 搜索，并在翻页时保留搜索条件。
+- 官方商店点击按配置商品 ID 绑定，不再仅凭材质匹配；`market.tax-rate` 与 `menu.allow-console-actions` 正式生效。
+- 优化购买、退款、待结算、待发货、下架和异步重载通知；已在 Paper 1.21.11 + Vault 1.7.3 + XConomy 2.26.3 完成干净启动验证。
+
+English:
+
+- Reworked purchases so charging follows reservation and sale state, buyer delivery, and net seller earnings commit atomically; refunds occur only before a sale commits.
+- Moved all MySQL/YAML market I/O off the Paper main thread while keeping Vault, inventory, and GUI calls synchronized.
+- Added bounded decimal price validation that rejects `Infinity`, oversized prices, and invalid legacy listings.
+- Added 45-slot pagination and `/errorshop market <query>` search with query retention across pages.
+- Bound server-shop clicks to configured item IDs and enforced `market.tax-rate` and `menu.allow-console-actions`.
+- Improved purchase, refund, pending payout, delivery, cancellation, and reload messages for Paper 1.21.11 + Vault/XConomy.
+
+</details>
+
+<details>
 <summary><strong>v0.17 - 2026-07-23 CST</strong></summary>
 
 - 新增市场商品右键两次确认下架，物品会安全返还或进入待领取队列。

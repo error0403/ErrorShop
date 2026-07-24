@@ -1,14 +1,14 @@
 name: ErrorShop
 main: com.pixelserver.errorshop.ErrorShopPlugin
-version: 0.17
+version: 0.18
 authors: [PixelServer]
 api-version: '1.21'
 folia-supported: true
-softdepend: [Vault, PlaceholderAPI, PlayerPoints]
+softdepend: [Vault, XConomy, PlaceholderAPI, PlayerPoints]
 commands:
   errorshop:
     description: ErrorShop main command
-    usage: /errorshop <reload|shop|market|sell|menu>
+    usage: /errorshop <reload|shop|market [search]|sell|menu>
     aliases: [eshop]
 permissions:
   errorshop.reload:

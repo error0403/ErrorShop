@@ -2,7 +2,8 @@ title: ErrorShop English User Guide
 content:
   - "ErrorShop is a free shop plugin with official shops, a global player market, and custom menus."
   - "Official shops: edit files in the shops folder, then use /errorshop shop <id>."
-  - "Global market: hold an item and run /errorshop sell <price>; buyers left-click listings, while sellers right-click their own listing twice to cancel it."
+  - "Global market: hold an item and run /errorshop sell <price>; use /errorshop market [search] to browse or search, and right-click your own listing twice to cancel it."
   - "Custom menus: edit files in the menus folder, then use /errorshop menu <id>."
   - "Main settings are in config.yml, storage/database settings are in database.yml, and all messages are in lang.yml."
   - "To enable real economy, install Vault and an economy plugin, then set currency.provider to vault in config.yml."
+  - "market.tax-rate controls the fee; min-price, max-price, and price-decimals define valid listing prices."

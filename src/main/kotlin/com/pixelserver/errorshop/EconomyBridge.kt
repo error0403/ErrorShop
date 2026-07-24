@@ -20,6 +20,7 @@ class EconomyBridge(private val plugin: ErrorShopPlugin) {
                     val economyClass = Class.forName("net.milkbowl.vault.economy.Economy")
                     val rsp = Bukkit.getServicesManager().getRegistration(economyClass) ?: return@runCatching
                     economy = rsp.provider
+                    plugin.logger.info("Vault economy provider connected: ${rsp.provider.javaClass.name}")
                 }.onFailure { plugin.logger.warning("Vault economy provider not available: ${it.message}") }
             }
         }
@@ -35,12 +36,16 @@ class EconomyBridge(private val plugin: ErrorShopPlugin) {
     }
 
     fun withdraw(player: OfflinePlayer, amount: Double): Boolean {
+        if (!amount.isFinite() || amount < 0) return false
+        if (amount == 0.0) return true
         val eco = economy ?: return !enabled
         if (!callBoolean(eco, "has", player, amount)) return false
         return transactionSuccess(callAny(eco, "withdrawPlayer", player, amount))
     }
 
     fun deposit(player: OfflinePlayer, amount: Double, fallbackName: String? = null): Boolean {
+        if (!amount.isFinite() || amount < 0) return false
+        if (amount == 0.0) return true
         val eco = economy ?: return !enabled
         return transactionSuccess(callAny(eco, "depositPlayer", player, amount, fallbackName))
     }
@@ -65,6 +70,7 @@ class EconomyBridge(private val plugin: ErrorShopPlugin) {
     }
 
     fun charge(player: Player, money: Double, points: Int): ChargeResult {
+        if (!money.isFinite() || money < 0) return ChargeResult.NOT_ENOUGH_MONEY
         if (!available()) return ChargeResult.MISSING_MONEY_PROVIDER
         if (!pointsAvailable()) return ChargeResult.MISSING_POINTS_PROVIDER
         if (money > 0 && !hasMoney(player, money)) return ChargeResult.NOT_ENOUGH_MONEY
@@ -94,6 +100,8 @@ class EconomyBridge(private val plugin: ErrorShopPlugin) {
     fun pointsAvailable(): Boolean = !pointsEnabled || pointsApi != null
 
     private fun hasMoney(player: OfflinePlayer, amount: Double): Boolean {
+        if (!amount.isFinite() || amount < 0) return false
+        if (amount == 0.0) return true
         val eco = economy ?: return !enabled
         return callBoolean(eco, "has", player, amount)
     }
