@@ -6,11 +6,11 @@ ErrorShop MineBBS 常驻发布稿。
 2. 从 build.gradle.kts 同步 Paper API、Java 和发布平台版本。
 3. 从 plugin.yml 与 ErrorShopPlugin.onCommand 同步命令、权限和别名。
 4. 从 config.yml 同步默认值；预留但未启用的字段不得写成已支持功能。
-5. 同步 README.md、本文“最近更新”和 MineBBS 帖子附件。
+5. 同步 README.md、MINEBBS.md、MINEBBS.bbcode、“最近更新”和 MineBBS 帖子附件。
 6. 发布前检查 GitHub Actions、下载链接、QQ 群链接和实测环境。
 
 当前内容基线：ErrorShop 0.18.1，2026-07-26，Paper 1.21.11，Java 21。
-本文可直接复制到 MineBBS；上传新版 JAR 后再发布或编辑帖子。
+本文用于 GitHub Markdown 预览；MineBBS 发布时请使用 MINEBBS.bbcode，并在上传新版 JAR 后发布或编辑帖子。
 -->
 
 # [服务端插件] ErrorShop 0.18.1｜轻量系统商店 + 玩家市场 + 自定义菜单｜支持 XConomy 与群组服
@@ -20,6 +20,8 @@ ErrorShop MineBBS 常驻发布稿。
 ![Paper](https://img.shields.io/badge/Paper-1.21.11-2f88d8)
 ![Java](https://img.shields.io/badge/Java-21-ed8b00)
 ![License](https://img.shields.io/badge/license-MIT-green)
+
+> 本文件是 GitHub Markdown 预览稿；在 MineBBS 编辑器发布时，请使用可直接粘贴源码模式的 [MINEBBS.bbcode](MINEBBS.bbcode)。
 
 > 想快速搭建官方商店、玩家自由市场、VIP/SVIP 上架额度和功能菜单，又不想从一开始就部署数据库？ErrorShop 默认使用本地 YAML 即装即用，需要群组服时再切换 MySQL + Redis。
 

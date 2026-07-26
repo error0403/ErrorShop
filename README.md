@@ -2,7 +2,7 @@
 
 [![Build](https://github.com/error0403/ErrorShop/actions/workflows/build.yml/badge.svg)](https://github.com/error0403/ErrorShop/actions/workflows/build.yml)
 
-> MineBBS 宣传贴长期维护稿：[MINEBBS.md](MINEBBS.md)
+> MineBBS 宣传贴长期维护稿：[Markdown 预览](MINEBBS.md) · [BBCode 直接发布](MINEBBS.bbcode)
 
 ## 🚀 为什么用 ErrorShop / Why ErrorShop
 
