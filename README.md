@@ -2,6 +2,8 @@
 
 [![Build](https://github.com/error0403/ErrorShop/actions/workflows/build.yml/badge.svg)](https://github.com/error0403/ErrorShop/actions/workflows/build.yml)
 
+> MineBBS 宣传贴长期维护稿：[MINEBBS.md](MINEBBS.md)
+
 ## 🚀 为什么用 ErrorShop / Why ErrorShop
 
 开服最烦的不是“有没有商店插件”，而是：商店菜单要改来改去、玩家交易入口不好做、VIP/SVIP 权限市场要单独写、跨服市场又容易重复购买或数据不同步。ErrorShop 就是为这些常见痛点做的：**简单、轻量、易上手，配置文件看得懂，装上就能开始搭商店体系。**
@@ -11,7 +13,7 @@ Running a server usually does not fail because there is no shop plugin — it fa
 你可以用 ErrorShop 快速完成：
 
 - **自定义无限个菜单**：用 `menus/` 写多少个 GUI 菜单都可以，适合作为主菜单、商店入口、传送入口、功能导航。
-- **快速创建系统商店**：在 `shops/` 里写商品配置，就能搭建服务器官方商店，支持购买、出售、权限控制。
+- **快速创建系统商店**：在 `shops/` 里写商品配置，就能搭建服务器官方商店，支持购买、金币/点券组合和权限控制。
 - **搭建带权限判断的全球市场**：玩家可自行上架物品，服主可按权限组控制上架数量，VIP/SVIP 市场权限不用额外写插件。
 - **群组服共享市场**：需要跨服时可切到 MySQL + Redis，支持共享市场、购买锁定、离线收益和待领取队列。
 - **低成本维护**：不追求花哨大而全，优先保证轻量、清晰、可配置、好排错。
@@ -19,7 +21,7 @@ Running a server usually does not fail because there is no shop plugin — it fa
 With ErrorShop, you can quickly build:
 
 - **Unlimited custom menus** through `menus/` for main menus, shop entrances, teleport menus, and feature navigation.
-- **Server shops in minutes** through `shops/`, with buy/sell items and permission checks.
+- **Server shops in minutes** through `shops/`, with configurable purchases, money/points pricing, and permission checks.
 - **A permission-gated global player market** where players list items and owners control listing slots by permission groups.
 - **A group-server shared market** through MySQL + Redis when you need cross-server trading, listing locks, offline earnings, and queued deliveries.
 - **Low-maintenance shop infrastructure** focused on being lightweight, readable, configurable, and easy to troubleshoot.
@@ -42,8 +44,8 @@ The author is frequently online and happy to receive bug reports, suggestions, a
 
 - 🧩 **无限自定义菜单**：`menus/` 想写几个就写几个，可做主菜单、商店入口、传送入口、活动入口和功能导航。  
   **Unlimited custom menus**: create as many `menus/` GUI files as you need for navigation, shops, teleports, events, and server features.
-- 🏪 **快速系统商店**：商品直接写进 `shops/`，不用写代码就能快速搭建官方商店，支持购买、出售和商店权限。  
-  **Fast server shops**: define items in `shops/` and build official server shops without coding, including buy/sell prices and shop permissions.
+- 🏪 **快速系统商店**：商品直接写进 `shops/`，不用写代码就能快速搭建官方商店，支持购买、金币/点券组合和商店权限。<br>
+  **Fast server shops**: define items in `shops/` and build official server shops without coding, including money/points pricing and shop permissions.
 - 📈 **权限全球市场**：玩家可自行上架物品，服主可按权限组限制上架数量，轻松做普通玩家/VIP/SVIP 差异。  
   **Permission-gated global market**: players list items themselves, while owners control listing slots by permission groups such as default/VIP/SVIP.
 - 🌐 **群组共享市场**：可选 MySQL + Redis，让多个子服共享玩家市场，并支持购买锁定、离线收益和待领取队列。  
@@ -475,7 +477,6 @@ items:
     lore:
       - "&7基础建筑材料"
     buy: 10.0
-    sell: 2.0
     amount: 16
 ```
 
@@ -486,9 +487,13 @@ items:
 | `items.<id>.material` | 物品材质，使用 Bukkit 材质名 / Item material using Bukkit material names |
 | `items.<id>.name` | 显示名称 / Display name |
 | `items.<id>.lore` | 物品描述 / Item lore |
-| `items.<id>.buy` | 购买价格，`0` 表示不可购买 / Buy price; `0` means not buyable |
-| `items.<id>.sell` | 出售价格，`0` 表示不可出售 / Sell price; `0` means not sellable |
+| `items.<id>.buy` | Vault 金币价格；`0` 表示不需要金币 / Vault money price; `0` means no money is required |
+| `items.<id>.sell` | 预留字段；当前版本尚未启用官方商店回收 / Reserved; server-shop sell-back is not enabled yet |
 | `items.<id>.amount` | 每次购买/显示的数量 / Amount shown or bought each time |
+
+注意：`/errorshop sell <price>` 是把主手物品上架到玩家市场，不是卖给官方商店。
+
+Note: `/errorshop sell <price>` lists the held item on the player market; it does not sell the item back to a server shop.
 
 ## 🧩 menus/ 菜单怎么写 / How to write menus/
 
