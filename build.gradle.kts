@@ -11,7 +11,7 @@ plugins {
 }
 
 group = "com.pixelserver.errorshop"
-version = "0.18"
+version = "0.18.1"
 val hangarResourcePage = file("../drafts/ErrorShop-Canonical-Release-Wiki.md").takeIf { it.isFile } ?: file("README.md")
 
 easylib {

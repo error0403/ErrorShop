@@ -70,11 +70,11 @@ The author is frequently online and happy to receive bug reports, suggestions, a
 - Recommended Java: 21
 - Compile target: Paper `1.21.11` (`1.21.x` compatible Paper forks)
 
-说明：0.18 使用 Java 21 和 Paper 1.21.11 API 编译。正式服升级前仍建议先备份 `plugins/ErrorShop/` 并在测试服完成一次购买、下架和离线卖家入账测试。
+说明：0.18.1 使用 Java 21 和 Paper 1.21.11 API 编译。正式服升级前仍建议先备份 `plugins/ErrorShop/` 并在测试服完成一次购买、下架、暂存领取和离线卖家入账测试。
 
 已完成干净启动验证：Paper `1.21.11-132`、Vault `1.7.3-b131`、XConomy Paper `2.26.3`。日志确认 ErrorShop 连接到 XConomy 的 Vault `OfflinePlayer` 经济实现。
 
-Note: 0.18 is compiled with Java 21 against the Paper 1.21.11 API. Back up `plugins/ErrorShop/` and test buying, cancellation, and offline seller payouts on staging before upgrading production.
+Note: 0.18.1 is compiled with Java 21 against the Paper 1.21.11 API. Back up `plugins/ErrorShop/` and test buying, cancellation, queued-item claims, and offline seller payouts on staging before upgrading production.
 
 Clean startup was verified with Paper `1.21.11-132`, Vault `1.7.3-b131`, and XConomy Paper `2.26.3`; ErrorShop connected to XConomy's Vault `OfflinePlayer` economy implementation.
 
@@ -106,6 +106,7 @@ Clean startup was verified with Paper `1.21.11-132`, Vault `1.7.3-b131`, and XCo
 | `/errorshop shop <id>` | 打开指定官方商店 / Open a server shop |
 | `/errorshop market [关键词]` | 打开或搜索分页玩家市场 / Open or search the paged player market |
 | `/errorshop sell <price>` | 把手上的物品按指定价格上架 / List the item in your hand for sale |
+| `/errorshop claim` | 领取背包满时安全暂存的物品 / Claim items queued while the inventory was full |
 | `/errorshop menu <id>` | 打开指定自定义菜单 / Open a custom menu |
 
 ## 🔐 权限 / Permissions
@@ -118,6 +119,7 @@ Clean startup was verified with Paper `1.21.11-132`, Vault `1.7.3-b131`, and XCo
 | `errorshop.market.sell` | 允许上架玩家市场商品 / Allows listing items on the player market |
 | `errorshop.market.buy` | 允许打开市场并购买商品 / Allows opening the market and buying items |
 | `errorshop.market.cancel` | 允许下架自己发布的市场商品 / Allows cancelling your own market listings |
+| `errorshop.market.claim` | 允许手动领取暂存物品，默认所有玩家拥有 / Allows manual queued-item claims; granted by default |
 
 ## 🧷 config.yml 怎么配置 / How to configure config.yml
 
@@ -560,11 +562,12 @@ Other players can run:
 ```text
 /errorshop market
 /errorshop market 钻石
+/errorshop claim
 ```
 
 市场每页显示 45 件商品，底部箭头翻页。关键词会匹配商品材质、显示名和卖家名，并在翻页时保留。买家左键商品即可购买；卖家对自己的商品右键两次可确认下架。
 
-The market shows 45 listings per page with navigation arrows. Searches match material, display name, and seller and remain active across pages. Buyers left-click to purchase; sellers right-click their own listing twice to cancel it.
+The market shows 45 listings per page with navigation arrows. Searches match material, display name, and seller and remain active across pages. Buyers left-click to purchase; sellers right-click their own listing twice to cancel it. When an inventory is full, items remain safely queued; clear some space and run `/errorshop claim` to retrieve them.
 
 注意：
 
@@ -573,6 +576,7 @@ Notes:
 - 玩家需要 `errorshop.market.sell` 才能上架。 / Players need `errorshop.market.sell` to list items.
 - 玩家需要 `errorshop.market.buy` 才能打开市场购买。 / Players need `errorshop.market.buy` to browse and buy.
 - 玩家不能购买自己的商品，但可右键两次安全下架并取回物品。 / Players cannot buy their own listings, but can right-click twice to safely cancel and reclaim them.
+- 背包满时物品会安全暂存；清出空间后输入 `/errorshop claim`，也可重新登录触发自动发放。 / Full-inventory items stay queued; run `/errorshop claim` after clearing space, or reconnect for automatic delivery.
 - 每个玩家上架数量受 `market.max-listings-per-player` 控制。 / Listing count is controlled by `market.max-listings-per-player`.
 
 
@@ -724,12 +728,14 @@ This file stores player market listings and pending seller earnings.
 /errorshop sell 100
 /errorshop market
 /errorshop market diamond
+/errorshop claim
 ```
 
 Players need:
 
 - `errorshop.market.sell` to list items
 - `errorshop.market.buy` to browse and buy market items
+- `errorshop.market.claim` to retrieve queued items after clearing inventory space
 
 ### MiniMessage
 
@@ -742,6 +748,21 @@ ErrorShop 0.14 does not currently provide confirmed custom `%errorshop_*%` place
 ## 📌 版本更新记录 / Version History
 
 <details open>
+<summary><strong>v0.18.1 - 2026-07-26 CST</strong></summary>
+
+- 新增 `/errorshop claim`，玩家清出背包空间后可主动领取购买或下架时暂存的物品。
+- 新增 `errorshop.market.claim` 权限（默认所有玩家拥有），并补充领取中、领取成功、队列为空和背包仍满提示。
+- 手动领取复用异步存储、同步背包操作和玩家操作互斥，兼容本地 YAML 与 MySQL 市场。
+
+English:
+
+- Added `/errorshop claim` so players can retrieve items queued by full-inventory purchases or listing cancellations.
+- Added the default-granted `errorshop.market.claim` permission and clear processing, success, empty-queue, and still-full messages.
+- Manual claims reuse asynchronous storage, synchronized inventory access, and per-player operation locking for both YAML and MySQL markets.
+
+</details>
+
+<details>
 <summary><strong>v0.18 - 2026-07-24 CST</strong></summary>
 
 - 重构购买流程：锁定后扣款，成交状态、买家待发物品与卖家税后收益原子提交；仅在成交未提交时退款。

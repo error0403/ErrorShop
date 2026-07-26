@@ -274,6 +274,12 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
                 return true
             }
             "sell" -> { sellToMarket(sender, args); return true }
+            "claim" -> {
+                val p = sender as? Player ?: return playerOnly(sender)
+                if (!p.hasPermission("errorshop.market.claim")) return deny(p)
+                settlePlayer(p, manual = true)
+                return true
+            }
             "menu" -> { val p = sender as? Player ?: return playerOnly(sender); openMenu(p, args.getOrNull(1) ?: (config.getString("settings.default-menu") ?: "main")); return true }
             else -> sendText(sender, msg("unknown-command"))
         }
@@ -284,6 +290,7 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
         sendText(sender, "&6/errorshop shop <id> &7打开官方商店")
         sendText(sender, "&6/errorshop market [关键词] &7打开或搜索全球市场")
         sendText(sender, "&6/errorshop sell <price> &7上架手持物品")
+        sendText(sender, "&6/errorshop claim &7领取背包满时暂存的物品")
         sendText(sender, "&6/errorshop menu <id> &7打开自定义菜单")
         sendText(sender, "&6/errorshop reload &7重载配置")
     }
@@ -718,10 +725,15 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
 
     private fun itemName(item: ItemStack): String = item.type.name.lowercase().replace('_', ' ')
 
-    private fun settlePlayer(player: Player) {
-        if (!marketReady || !marketOperations.add(player.uniqueId)) return
-        val backend = market
+    private fun settlePlayer(player: Player, manual: Boolean = false) {
         val playerId = player.uniqueId
+        if (manual) {
+            if (!beginMarketOperation(player)) return
+            sendText(player, msg("market-claim-processing"))
+        } else if (!marketReady || !marketOperations.add(playerId)) {
+            return
+        }
+        val backend = market
         val claimEarnings = economy.available()
         launchCoroutine(SynchronizationContext.ASYNC, entity = player) {
             try {
@@ -747,8 +759,14 @@ class ErrorShopPlugin : EasyPlugin(), Listener {
                 }
                 switchContext(SynchronizationContext.SYNC)
                 if (player.isOnline) {
-                    if (outcome.deliveredAmount > 0) sendText(player, msg("market-delivery-claimed", mapOf("count" to outcome.deliveredAmount.toString())))
+                    if (outcome.deliveredAmount > 0) {
+                        val message = if (manual) "market-delivery-claimed-manual" else "market-delivery-claimed"
+                        sendText(player, msg(message, mapOf("count" to outcome.deliveredAmount.toString())))
+                    }
                     if (outcome.remaining.isNotEmpty()) sendText(player, msg("market-delivery-still-queued", mapOf("count" to outcome.remaining.sumOf { it.amount }.toString())))
+                    if (manual && deliveryResult.isSuccess && outcome.deliveredAmount == 0 && outcome.remaining.isEmpty()) {
+                        sendText(player, msg("market-delivery-empty"))
+                    }
                     if (pendingEarning > 0 && payoutSucceeded) sendText(player, msg("pending-earnings-paid", mapOf("amount" to formatMoney(pendingEarning))))
                     if (deliveryResult.isFailure || earningResult.isFailure || restoreFailed) sendText(player, msg("market-delivery-pending"))
                 }
